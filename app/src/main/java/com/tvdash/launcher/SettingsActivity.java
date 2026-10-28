@@ -53,6 +53,18 @@ public class SettingsActivity extends Activity {
                 choose("Temperature", new String[]{"Fahrenheit (°F)", "Celsius (°C)"}, prefs.fahrenheit() ? 0 : 1,
                         i -> prefs.setFahrenheit(i == 0)));
 
+        section(list, "Markets");
+        row(list, "Stocks and ETFs", () -> tickerValue(false), () ->
+                askText("Stocks and ETFs",
+                        "Up to 16 symbols, separated by commas. For example SPY, QQQ. "
+                                + "The ticker shows the price and whether it is up or down today. Leave empty to hide.",
+                        prefs.stocksText(), false, true, prefs::setStocksText));
+        row(list, "Crypto", () -> tickerValue(true), () ->
+                askText("Crypto",
+                        "Up to 16 symbols, separated by commas. For example BTC, ETH. "
+                                + "The ticker shows the price and whether it is up or down today. Leave empty to hide.",
+                        prefs.cryptoText(), false, true, prefs::setCryptoText));
+
         section(list, "Clock");
         row(list, "Clock style", () -> prefs.clock24() ? "24-hour" : "12-hour", () ->
                 choose("Clock style", new String[]{"12-hour (3:45 PM)", "24-hour (15:45)"}, prefs.clock24() ? 1 : 0,
@@ -132,6 +144,13 @@ public class SettingsActivity extends Activity {
         return m == 0 ? "Off" : m + " minutes of no remote use";
     }
 
+    private String tickerValue(boolean crypto) {
+        String text = crypto ? prefs.cryptoText() : prefs.stocksText();
+        if (text.isEmpty()) return "Hidden";
+        if (text.length() > 32) return (crypto ? prefs.crypto().size() : prefs.stocks().size()) + " symbols";
+        return text;
+    }
+
     private void section(LinearLayout list, String name) {
         TextView t = Ui.text(this, name.toUpperCase(), 13, Ui.ACCENT, true);
         t.setLetterSpacing(0.08f);
@@ -187,6 +206,10 @@ public class SettingsActivity extends Activity {
     }
 
     private void askText(String title, String hint, String current, boolean multiLine, final TextChoice onSave) {
+        askText(title, hint, current, multiLine, false, onSave);
+    }
+
+    private void askText(String title, String hint, String current, boolean multiLine, boolean symbols, final TextChoice onSave) {
         final EditText input = new EditText(this);
         input.setText(current);
         input.setSelection(input.getText().length());
@@ -194,6 +217,11 @@ public class SettingsActivity extends Activity {
         if (multiLine) {
             input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_VARIATION_URI);
             input.setMinLines(3);
+        } else if (symbols) {
+            input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                    | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+            input.setSingleLine(true);
+            input.setHorizontallyScrolling(true);
         } else {
             input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
             input.setSingleLine(true);

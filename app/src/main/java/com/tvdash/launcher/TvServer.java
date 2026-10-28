@@ -359,7 +359,9 @@ final class TvServer {
                 .put("clock24", h24)
                 .put("slideSeconds", prefs.slideSeconds())
                 .put("saverMinutes", prefs.saverMinutes())
-                .put("showAllApps", prefs.showAllApps()));
+                .put("showAllApps", prefs.showAllApps())
+                .put("stocks", stringArray(prefs.stocks()))
+                .put("crypto", stringArray(prefs.crypto())));
         JSONArray favs = new JSONArray();
         List<String> favList = prefs.favorites();
         if (favList != null) for (String f : favList) favs.put(f);
@@ -480,17 +482,47 @@ final class TvServer {
     }
 
     private Response settings(JSONObject j) throws Exception {
+        List<String> stocks = null;
+        List<String> crypto = null;
+        try {
+            if (j.has("stocks")) stocks = symbolList(j, "stocks", false);
+            if (j.has("crypto")) crypto = symbolList(j, "crypto", true);
+        } catch (org.json.JSONException bad) {
+            return Response.error(400, "stocks and crypto must be lists of symbols");
+        }
         if (j.has("city")) prefs.setCity(j.getString("city"));
         if (j.has("fahrenheit")) prefs.setFahrenheit(j.getBoolean("fahrenheit"));
         if (j.has("clock24")) prefs.setClock24(j.getBoolean("clock24"));
         if (j.has("slideSeconds")) prefs.setSlideSeconds(pick(Prefs.SLIDE_SECONDS, j.getInt("slideSeconds")));
         if (j.has("saverMinutes")) prefs.setSaverMinutes(pick(Prefs.SAVER_MINUTES, j.getInt("saverMinutes")));
         if (j.has("showAllApps")) prefs.setShowAllApps(j.getBoolean("showAllApps"));
+        if (stocks != null) prefs.setStocks(stocks);
+        if (crypto != null) prefs.setCrypto(crypto);
         main.post(() -> {
             Hub.Screen screen = Hub.screen;
             if (screen != null) screen.remoteSettingsChanged();
         });
         return Response.ok();
+    }
+
+    /** Symbol lists from the phone. Arrays are the normal form; a comma-separated string is accepted too. */
+    private static List<String> symbolList(JSONObject j, String key, boolean crypto) throws org.json.JSONException {
+        Object v = j.get(key);
+        if (v instanceof String) return Prefs.parseSymbols((String) v, crypto);
+        if (!(v instanceof JSONArray)) throw new org.json.JSONException(key);
+        JSONArray a = (JSONArray) v;
+        StringBuilder raw = new StringBuilder();
+        for (int i = 0; i < a.length(); i++) {
+            if (a.isNull(i)) continue;
+            raw.append(a.opt(i)).append('\n');
+        }
+        return Prefs.parseSymbols(raw.toString(), crypto);
+    }
+
+    private static JSONArray stringArray(List<String> values) {
+        JSONArray a = new JSONArray();
+        if (values != null) for (String s : values) a.put(s);
+        return a;
     }
 
     /** Snap to the nearest allowed choice so the phone can't set odd values. */

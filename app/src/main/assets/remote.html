@@ -140,6 +140,15 @@
     <div class="seg" data-setting="saverMinutes"><button data-v="0">Off</button><button data-v="2">2m</button><button data-v="5">5m</button><button data-v="10">10m</button><button data-v="30">30m</button></div></div>
   <div class="field"><label>"All apps" section on TV</label>
     <div class="seg" data-setting="showAllApps"><button data-v="true">Show</button><button data-v="false">Hide</button></div></div>
+  <div class="field">
+    <label for="stocks">Stocks and ETFs, separated by commas</label>
+    <div class="row"><input id="stocks" placeholder="SPY, QQQ" autocapitalize="characters" autocomplete="off" spellcheck="false"><button id="saveStocks" style="flex:0 0 auto">Save</button></div>
+  </div>
+  <div class="field">
+    <label for="crypto">Crypto, separated by commas</label>
+    <div class="row"><input id="crypto" placeholder="BTC, ETH" autocapitalize="characters" autocomplete="off" spellcheck="false"><button id="saveCrypto" style="flex:0 0 auto">Save</button></div>
+  </div>
+  <p class="muted">Symbols only, up to 16 of each. The TV shows the price and today's move. It never shows balances or how much anyone holds.</p>
 
   <p class="muted" style="margin-top:28px">Tip: use <b>Share → Add to Home Screen</b> to keep this like an app. Your phone must be on the same Wi‑Fi as the TV.
     <a href="#" id="forget" style="color: var(--muted)">Forget PIN</a></p>
@@ -283,6 +292,9 @@
     // Settings controls reflect what the TV has.
     $('city').placeholder = 'e.g. Dallas';
     if (document.activeElement !== $('city')) $('city').value = state.settings.city;
+    const joinSyms = (v) => Array.isArray(v) ? v.join(', ') : '';
+    if (document.activeElement !== $('stocks')) $('stocks').value = joinSyms(state.settings.stocks);
+    if (document.activeElement !== $('crypto')) $('crypto').value = joinSyms(state.settings.crypto);
     document.querySelectorAll('.seg').forEach(seg => {
       const cur = String(state.settings[seg.dataset.setting]);
       seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === cur));
@@ -384,6 +396,26 @@
   }));
   $('saveCity').onclick = () => saveSetting('city', $('city').value.trim());
   $('city').onkeydown = (e) => { if (e.key === 'Enter') $('saveCity').click(); };
+  function parseSymbols(raw) {
+    const out = [];
+    String(raw || '').split(/[\s,;]+/).forEach(part => {
+      let s = part.trim().replace(/^\$/, '').toUpperCase();
+      if (s && out.indexOf(s) < 0 && out.length < 16) out.push(s);
+    });
+    return out;
+  }
+  async function saveSymbols(key, input) {
+    try {
+      await api('/api/settings', { [key]: parseSymbols(input.value) });
+      await refresh();
+      if (state && state.settings) input.value = (state.settings[key] || []).join(', ');
+      toast('Updated on the TV');
+    } catch (e) { if (e.message !== 'pin') toast(e.message); }
+  }
+  $('saveStocks').onclick = () => saveSymbols('stocks', $('stocks'));
+  $('saveCrypto').onclick = () => saveSymbols('crypto', $('crypto'));
+  $('stocks').onkeydown = (e) => { if (e.key === 'Enter') $('saveStocks').click(); };
+  $('crypto').onkeydown = (e) => { if (e.key === 'Enter') $('saveCrypto').click(); };
   $('search').oninput = (e) => { filter = e.target.value.trim().toLowerCase(); if (state) render(); };
   $('pinGo').onclick = () => connect($('pinInput').value.trim());
   $('pinInput').onkeydown = (e) => { if (e.key === 'Enter') $('pinGo').click(); };

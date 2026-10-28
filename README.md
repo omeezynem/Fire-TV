@@ -5,6 +5,7 @@ TV Dash is a custom dashboard app for Amazon Fire TV (and any Android TV). It ru
 ## What's on it
 - **Big clock and date** in 12- or 24-hour style.
 - **Weather**: current temperature, conditions, feels-like, humidity, wind, and a 3-day forecast from Open-Meteo, which is free. It finds your city from your internet connection, or you can set one.
+- **Market ticker**: a strip of stock, ETF, and crypto prices. Each symbol shows its name, the latest price, and a green ▲ or red ▼ with today's percent change. It does not show quantities, balances, or holdings. The list starts empty, so the strip stays hidden until you add symbols. The same prices show on the screensaver.
 - **Favorites row**: your streaming apps as large tiles using each app's own TV artwork. On first launch it pins whichever of Netflix, Prime Video, YouTube, Disney+, Hulu, Max, Peacock, Paramount+, Pluto, Plex and Spotify are installed.
 - **All apps** grid with every app on the TV, sorted A–Z. It updates on its own when you install or remove an app.
 - **System row**: one-click Fire TV Settings, Network, Manage apps, Dashboard settings, Screensaver, and New photo.
@@ -25,12 +26,26 @@ From your phone you can:
 - Show a message on the TV screen ("Dinner's ready 🍕").
 - Turn the screensaver on or off and skip to the next photo.
 - Change the weather city, °F/°C, clock style, photo timing and screensaver timing. The TV updates instantly.
+- Set the stock, ETF, and crypto symbols for the market ticker.
 
 The phone must be on the same Wi‑Fi as the TV. Every request needs the PIN, and 5 wrong PINs lock the remote for 5 minutes. **New PIN** on the TV signs out every phone. The remote keeps running in the background and starts when the TV turns on.
 
 **Opening apps while you're watching something else:** Android 10+ (Fire OS 8) blocks background apps from switching screens. While TV Dash is on screen this always works. To make it work at any time, allow "display over other apps" once from a computer:
 `adb shell appops set com.tvdash.launcher SYSTEM_ALERT_WINDOW allow`
 Fire OS 7 and older don't need this.
+
+## Market ticker
+
+The ticker is off until you add symbols. Those symbols are saved on the TV only. They are not built into the app.
+
+On the TV, open **System → Dashboard settings → Markets**.
+
+- **Stocks and ETFs**: symbols separated by commas, for example `SPY, QQQ`. A class share can be written `BRK.B`.
+- **Crypto**: symbols separated by commas, for example `BTC, ETH, XRP, DOGE`.
+
+Up to 16 of each. From the phone remote, use the same two fields under **Dashboard settings**. The TV updates as soon as you save, then refreshes about every 90 seconds while TV Dash is on screen (including the screensaver).
+
+Stock and ETF prices come from Yahoo Finance. Crypto prices come from CoinGecko. Both are free and need no API key. Each symbol shows the price and whether it is up or down today. If the network fails, the last prices stay up. Clear both lists to hide the strip.
 
 ## Remote controls
 | Button | What it does |
@@ -68,9 +83,10 @@ adb connect <fire-tv-ip>:5555 && adb install -r app/build/outputs/apk/debug/app-
 ## Code map
 | File | What it does |
 |---|---|
-| `MainActivity.java` | The dashboard: layout, app rows, clock, status, weather display, screensaver, remote handling |
+| `MainActivity.java` | The dashboard: layout, app rows, clock, status, weather, market ticker, screensaver, remote handling |
 | `AppEntry.java` | Finds the TV's launchable apps and their banners |
 | `Weather.java` | Location lookup plus the Open-Meteo forecast |
+| `Markets.java` | Stock, ETF, and crypto prices for the ticker (Yahoo Finance and CoinGecko) |
 | `Slideshow.java` | Downloads, resizes and cross-fades the background photos |
 | `TvServer.java` | Small home-network web server and the PIN-protected API the phone uses |
 | `RemoteService.java`, `BootReceiver.java` | Keep the phone remote running, including after the TV restarts |
