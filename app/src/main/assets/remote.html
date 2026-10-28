@@ -196,6 +196,7 @@
     <button data-act="home"><span>⌂</span>TV Dash</button>
     <button data-act="saver"><span id="saverIcon">◐</span><span id="saverText" style="font-size:13px">Screensaver</span></button>
     <button data-act="next"><span>↻</span>New photo</button>
+    <button data-act="work"><span>◎</span>Work</button>
   </div>
 
   <h2>Favorites</h2>
@@ -239,6 +240,15 @@
   </div>
   <div id="showHits" class="showhits"></div>
   <div id="myShows" class="showhits"></div>
+
+  <h2>Vigo work</h2>
+  <p class="muted" id="workKeyState">No key saved. Work Mode shows demo data until you save one.</p>
+  <div class="row">
+    <input id="workKey" type="password" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Vigo key">
+    <button id="saveWorkKey" style="flex:0 0 auto; min-height:48px">Save key</button>
+    <button id="clearWorkKey" class="ghost" style="flex:0 0 auto; min-height:48px">Clear</button>
+  </div>
+  <p class="muted">The key stays on the TV. It is not shown again and is not sent back to this phone.</p>
 
   <h2>Dashboard settings</h2>
   <div class="field">
@@ -469,6 +479,10 @@
     if (document.activeElement !== $('stocks')) $('stocks').value = joinSyms(state.settings.stocks);
     if (document.activeElement !== $('crypto')) $('crypto').value = joinSyms(state.settings.crypto);
     renderMyShows();
+    const keyLine = $('workKeyState');
+    if (keyLine) keyLine.textContent = state.workKeySet
+      ? 'A key is saved on the TV. Work Mode loads live orders. The key itself is not shown.'
+      : 'No key saved. Work Mode shows demo data until you save one.';
     document.querySelectorAll('.seg').forEach(seg => {
       const cur = String(state.settings[seg.dataset.setting]);
       seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === cur));
@@ -559,6 +573,7 @@
     try {
       const act = b.dataset.act;
       if (act === 'home') { await api('/api/home', {}); toast('Opening TV Dash'); }
+      if (act === 'work') { await api('/api/work', {}); toast('Opening Work Mode'); }
       if (act === 'saver') { await api('/api/screensaver', { on: !(state && state.saverOn) }); refresh(); }
       if (act === 'next') { await api('/api/photo/next', {}); toast('Next photo'); }
     } catch (e) { if (e.message !== 'pin') toast(e.message); }
@@ -586,6 +601,24 @@
       toast('Updated on the TV');
     } catch (e) { if (e.message !== 'pin') toast(e.message); }
   }
+  $('saveWorkKey').onclick = async () => {
+    const value = $('workKey').value.trim();
+    if (!value) { toast('Type a key first'); return; }
+    try {
+      await api('/api/settings', { workKey: value });
+      $('workKey').value = '';
+      await refresh();
+      toast('Key saved on the TV');
+    } catch (e) { if (e.message !== 'pin') toast(e.message); }
+  };
+  $('clearWorkKey').onclick = async () => {
+    try {
+      await api('/api/settings', { clearWorkKey: true });
+      $('workKey').value = '';
+      await refresh();
+      toast('Key cleared. Work Mode will use demo data.');
+    } catch (e) { if (e.message !== 'pin') toast(e.message); }
+  };
   $('saveStocks').onclick = () => saveSymbols('stocks', $('stocks'));
   $('saveCrypto').onclick = () => saveSymbols('crypto', $('crypto'));
   $('stocks').onkeydown = (e) => { if (e.key === 'Enter') $('saveStocks').click(); };

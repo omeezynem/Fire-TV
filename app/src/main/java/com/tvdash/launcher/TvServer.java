@@ -338,6 +338,7 @@ final class TvServer {
             case "/api/settings": return settings(r.json());
             case "/api/favorites": return favorites(r.json());
             case "/api/shows": return shows(r.json());
+            case "/api/work": return workMode();
             default: return Response.error(404, "Not found");
         }
     }
@@ -475,6 +476,7 @@ final class TvServer {
                     .put("network", show.network));
         }
         s.put("shows", shows);
+        s.put("workKeySet", prefs.workKeySet());
         return Response.json(200, s);
     }
 
@@ -537,6 +539,11 @@ final class TvServer {
 
     private Response home() {
         return start(new Intent(app, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+    }
+
+    private Response workMode() {
+        return start(new Intent(app, WorkActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
     }
 
@@ -622,6 +629,12 @@ final class TvServer {
         if (j.has("showAllApps")) prefs.setShowAllApps(j.getBoolean("showAllApps"));
         if (stocks != null) prefs.setStocks(stocks);
         if (crypto != null) prefs.setCrypto(crypto);
+        if (j.optBoolean("clearWorkKey", false)) prefs.setWorkBearer("");
+        else if (j.has("workKey")) {
+            String workKey = j.optString("workKey", "").trim();
+            if (workKey.length() > 200) workKey = workKey.substring(0, 200);
+            if (workKey.length() > 0) prefs.setWorkBearer(workKey);
+        }
         main.post(() -> {
             Hub.Screen screen = Hub.screen;
             if (screen != null) screen.remoteSettingsChanged();

@@ -38,8 +38,21 @@ final class Prefs {
         sp.edit().remove("favorites").apply();
     }
 
-    /** Optional key for a future work feed. Empty means the map stays on the built-in sample. Never shown. */
-    String workBearer() { return sp.getString("workBearer", ""); }
+    /**
+     * Vigo bearer token. Empty means Work Mode shows demo data.
+     * The value is never returned to the phone or drawn on screen after it is saved.
+     */
+    String workBearer() {
+        String v = sp.getString("workBearer", "");
+        return v == null ? "" : v;
+    }
+
+    void setWorkBearer(String v) {
+        if (v == null || v.trim().length() == 0) sp.edit().remove("workBearer").apply();
+        else sp.edit().putString("workBearer", v.trim()).apply();
+    }
+
+    boolean workKeySet() { return workBearer().trim().length() > 0; }
 
     String city() { return sp.getString("city", ""); }
     void setCity(String v) { sp.edit().putString("city", v.trim()).apply(); }

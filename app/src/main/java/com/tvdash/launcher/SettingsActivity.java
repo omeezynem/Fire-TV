@@ -125,6 +125,9 @@ public class SettingsActivity extends Activity {
                         })
                         .show());
 
+        section(list, "Work");
+        row(list, "Vigo key", () -> prefs.workKeySet() ? "Saved" : "Not set", this::askWorkKey);
+
         section(list, "About");
         row(list, "Use as the Home button", () -> "How to open TV Dash with Home", () ->
                 new AlertDialog.Builder(this)
@@ -231,6 +234,40 @@ public class SettingsActivity extends Activity {
                     refresh();
                     d.dismiss();
                 })
+                .show();
+    }
+
+    private void askWorkKey() {
+        final EditText input = new EditText(this);
+        input.setHint("Vigo key");
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        FrameLayout box = new FrameLayout(this);
+        int p = Ui.dp(this, 20);
+        box.setPadding(p, Ui.dp(this, 8), p, 0);
+        box.addView(input);
+        new AlertDialog.Builder(this)
+                .setTitle("Vigo key")
+                .setMessage("Paste the key from Vigo. It is saved on this TV only and is not shown again. "
+                        + "Leave Work Mode on demo data by clearing it.")
+                .setView(box)
+                .setPositiveButton("Save", (d, w) -> {
+                    String next = input.getText().toString().trim();
+                    if (next.length() == 0) {
+                        Toast.makeText(this, "Key left unchanged", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    prefs.setWorkBearer(next);
+                    refresh();
+                    Toast.makeText(this, "Key saved", Toast.LENGTH_SHORT).show();
+                })
+                .setNeutralButton("Clear", (d, w) -> {
+                    prefs.setWorkBearer("");
+                    refresh();
+                    Toast.makeText(this, "Key cleared. Work Mode will use demo data.", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Cancel", null)
                 .show();
     }
 

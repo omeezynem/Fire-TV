@@ -8,58 +8,49 @@ import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.view.View;
 
+import java.util.ArrayList;
 import java.util.List;
 
-/** Continental US outline with one dot per open job. D-pad moves between dots. Nothing here edits a job. */
+/** US states from the bundled outlines, with one dot per work order. No map tiles. */
 final class WorkMapView extends View {
-    interface Select { void onJob(WorkClient.Job job); }
-
-    private static final double LON0 = -125.0;
-    private static final double LON1 = -66.5;
-    private static final double LAT0 = 24.2;
-    private static final double LAT1 = 49.6;
-
-    /** Rough coastline, lon/lat pairs. Enough to read as the lower 48. */
-    private static final float[] OUTLINE = {
-            -124.6f, 48.4f, -124.4f, 47.2f, -124.1f, 46.2f, -124.0f, 44.5f, -124.4f, 43.3f,
-            -124.3f, 42.0f, -124.2f, 40.4f, -123.8f, 39.0f, -122.5f, 37.1f, -121.8f, 36.2f,
-            -120.6f, 34.4f, -119.0f, 34.1f, -117.2f, 32.5f, -114.7f, 32.6f, -111.0f, 31.3f,
-            -108.2f, 31.3f, -106.5f, 31.8f, -104.7f, 29.4f, -103.0f, 29.0f, -101.4f, 29.8f,
-            -99.2f, 27.5f, -97.4f, 25.9f, -96.8f, 28.2f, -94.8f, 29.5f, -93.8f, 29.7f,
-            -90.0f, 29.2f, -89.4f, 29.0f, -89.2f, 30.2f, -87.6f, 30.3f, -86.5f, 30.4f,
-            -85.0f, 29.7f, -83.8f, 29.2f, -82.6f, 27.8f, -82.0f, 26.4f, -81.4f, 25.4f,
-            -80.2f, 25.3f, -80.0f, 26.8f, -80.0f, 28.2f, -81.0f, 30.3f, -81.4f, 31.2f,
-            -81.2f, 32.1f, -80.8f, 32.7f, -79.8f, 32.8f, -79.0f, 33.5f, -77.9f, 34.2f,
-            -76.0f, 35.2f, -75.5f, 35.6f, -75.6f, 36.9f, -75.9f, 37.2f, -76.3f, 38.0f,
-            -75.0f, 38.4f, -74.4f, 39.3f, -74.0f, 40.5f, -73.2f, 40.6f, -71.9f, 41.3f,
-            -70.6f, 41.6f, -70.0f, 42.0f, -70.6f, 43.1f, -70.2f, 43.7f, -68.2f, 44.4f,
-            -67.0f, 44.8f, -67.8f, 46.0f, -69.0f, 47.1f, -71.2f, 45.3f, -73.3f, 45.0f,
-            -74.8f, 45.0f, -76.5f, 44.2f, -79.0f, 43.3f, -81.2f, 43.0f, -82.4f, 42.0f,
-            -83.0f, 42.3f, -83.4f, 43.6f, -84.5f, 45.8f, -85.0f, 46.0f, -86.5f, 45.3f,
-            -87.5f, 45.2f, -88.0f, 44.0f, -87.8f, 42.5f, -89.0f, 42.5f, -90.2f, 42.5f,
-            -92.0f, 46.7f, -94.6f, 48.8f, -97.2f, 49.0f, -104.0f, 49.0f, -116.0f, 49.0f,
-            -123.0f, 49.0f, -124.6f, 48.4f
-    };
+    interface Select {
+        void onJob(WorkOrder job);
+        void onOpen(WorkOrder job);
+    }
 
     private final Paint land = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint landOn = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint pick = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Path shape = new Path();
 
-    private List<WorkClient.Job> jobs = new java.util.ArrayList<WorkClient.Job>();
+    private List<WorkGeo.State> states = new ArrayList<WorkGeo.State>();
+    private List<Path> paths = new ArrayList<Path>();
+    private List<WorkOrder> jobs = new ArrayList<WorkOrder>();
     private float[] xs = new float[0];
     private float[] ys = new float[0];
     private int selected;
+    private String zoom;
     private Select listener;
     private boolean running;
+    private boolean laidOut;
+    private int laidW;
+    private int laidH;
+    private double lon0 = -125;
+    private double lon1 = -66.5;
+    private double lat0 = 24.2;
+    private double lat1 = 49.6;
+    private double scale;
+    private float originX;
+    private float originY;
+
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             if (!running) return;
             invalidate();
-            postDelayed(this, 32);
+            postDelayed(this, 48);
         }
     };
 
@@ -68,35 +59,52 @@ final class WorkMapView extends View {
         setFocusable(true);
         setFocusableInTouchMode(true);
         land.setStyle(Paint.Style.FILL);
-        land.setColor(0xFF101010);
+        land.setColor(0xFF0A3A72);
+        landOn.setStyle(Paint.Style.FILL);
+        landOn.setColor(0xFF0E4E78);
         edge.setStyle(Paint.Style.STROKE);
-        edge.setStrokeWidth(2f);
-        edge.setColor(0xFF3A3A3A);
+        edge.setStrokeWidth(1.5f);
+        edge.setColor(0xFF43C7D8);
         fill.setStyle(Paint.Style.FILL);
         ring.setStyle(Paint.Style.STROKE);
         ring.setStrokeWidth(3f);
         dot.setStyle(Paint.Style.FILL);
         pick.setStyle(Paint.Style.STROKE);
         pick.setStrokeWidth(2f);
-        pick.setColor(0xFFEDEDED);
+        pick.setColor(0xFFF4F7FB);
     }
 
-    void setJobs(List<WorkClient.Job> next) {
-        jobs = next == null ? new java.util.ArrayList<WorkClient.Job>() : next;
-        if (selected >= jobs.size()) selected = 0;
+    void setJobs(List<WorkOrder> next, String keepWo) {
+        jobs = next == null ? new ArrayList<WorkOrder>() : next;
+        selected = 0;
+        if (keepWo != null) {
+            for (int i = 0; i < jobs.size(); i++) {
+                if (keepWo.equals(jobs.get(i).woNumber)) selected = i;
+            }
+        }
         xs = new float[jobs.size()];
         ys = new float[jobs.size()];
+        laidOut = false;
         layoutDots();
         tell();
         invalidate();
     }
+
+    void setZoom(String stateCode) {
+        zoom = stateCode == null || stateCode.length() == 0 ? null : WorkGeo.stateCode(stateCode);
+        laidOut = false;
+        layoutDots();
+        invalidate();
+    }
+
+    String zoom() { return zoom; }
 
     void setListener(Select select) {
         listener = select;
         tell();
     }
 
-    WorkClient.Job selected() {
+    WorkOrder selected() {
         if (jobs.isEmpty() || selected < 0 || selected >= jobs.size()) return null;
         return jobs.get(selected);
     }
@@ -121,11 +129,16 @@ final class WorkMapView extends View {
 
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        laidOut = false;
         layoutDots();
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+            if (listener != null) listener.onOpen(selected());
+            return true;
+        }
         if (jobs.isEmpty()) return false;
         int dirX = 0;
         int dirY = 0;
@@ -133,9 +146,9 @@ final class WorkMapView extends View {
         else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) dirX = -1;
         else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) dirY = 1;
         else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) dirY = -1;
-        else if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) return true;
         else return false;
         int next = neighbor(dirX, dirY);
+        if (next < 0 && dirY < 0) return false;
         if (next < 0) next = (selected + (dirX < 0 || dirY < 0 ? jobs.size() - 1 : 1)) % jobs.size();
         if (next != selected) {
             selected = next;
@@ -146,7 +159,7 @@ final class WorkMapView extends View {
     }
 
     private int neighbor(int dirX, int dirY) {
-        if (xs.length != jobs.size()) return -1;
+        if (xs.length != jobs.size() || jobs.isEmpty()) return -1;
         float cx = xs[selected];
         float cy = ys[selected];
         int best = -1;
@@ -159,8 +172,8 @@ final class WorkMapView extends View {
             if (dirY != 0 && Math.signum(vy) != dirY) continue;
             float primary = dirX != 0 ? Math.abs(vx) : Math.abs(vy);
             float secondary = dirX != 0 ? Math.abs(vy) : Math.abs(vx);
-            if (primary < 6f) continue;
-            if (secondary > primary * 2.2f + 28f) continue;
+            if (primary < 4f) continue;
+            if (secondary > primary * 2.4f + 36f) continue;
             float score = primary * 2f + secondary;
             if (score < bestScore) {
                 bestScore = score;
@@ -177,33 +190,81 @@ final class WorkMapView extends View {
     private void layoutDots() {
         int w = getWidth();
         int h = getHeight();
-        if (w <= 0 || h <= 0 || xs.length != jobs.size()) return;
-        float pad = Ui.dp(getContext(), 18);
-        for (int i = 0; i < jobs.size(); i++) {
-            float[] p = project(jobs.get(i).lon, jobs.get(i).lat, w, h, pad);
-            xs[i] = p[0];
-            ys[i] = p[1];
-        }
-        float min = Ui.dp(getContext(), 16);
-        for (int i = 0; i < jobs.size(); i++) {
-            for (int j = 0; j < i; j++) {
-                float dx = xs[i] - xs[j];
-                float dy = ys[i] - ys[j];
-                if (dx * dx + dy * dy < min * min) {
-                    double ang = i * 0.9;
-                    xs[i] += (float) (Math.cos(ang) * min);
-                    ys[i] += (float) (Math.sin(ang) * min);
+        if (w <= 0 || h <= 0) return;
+        if (states.isEmpty()) states = WorkGeo.states(getContext());
+        fit(w, h);
+        if (!laidOut || laidW != w || laidH != h) {
+            paths.clear();
+            for (int i = 0; i < states.size(); i++) {
+                WorkGeo.State st = states.get(i);
+                for (int r = 0; r < st.rings.size(); r++) {
+                    float[] ring = st.rings.get(r);
+                    Path path = new Path();
+                    boolean moved = false;
+                    for (int p = 0; p + 1 < ring.length; p += 2) {
+                        float[] xy = project(ring[p], ring[p + 1]);
+                        if (!moved) {
+                            path.moveTo(xy[0], xy[1]);
+                            moved = true;
+                        } else {
+                            path.lineTo(xy[0], xy[1]);
+                        }
+                    }
+                    path.close();
+                    paths.add(path);
                 }
             }
+            laidOut = true;
+            laidW = w;
+            laidH = h;
+        }
+        if (xs.length != jobs.size()) return;
+        for (int i = 0; i < jobs.size(); i++) {
+            if (!jobs.get(i).located) {
+                xs[i] = -1000;
+                ys[i] = -1000;
+                continue;
+            }
+            float[] xy = project(jobs.get(i).lon, jobs.get(i).lat);
+            xs[i] = xy[0];
+            ys[i] = xy[1];
         }
     }
 
-    private static float[] project(double lon, double lat, int w, int h, float pad) {
-        float x = (float) ((lon - LON0) / (LON1 - LON0));
-        float y = (float) ((LAT1 - lat) / (LAT1 - LAT0));
+    private void fit(int w, int h) {
+        lon0 = -125;
+        lon1 = -66.5;
+        lat0 = 24.2;
+        lat1 = 49.6;
+        if (zoom != null) {
+            for (int i = 0; i < states.size(); i++) {
+                WorkGeo.State st = states.get(i);
+                if (!st.id.equals(zoom)) continue;
+                double cx = (st.box[0] + st.box[2]) / 2.0;
+                double cy = (st.box[1] + st.box[3]) / 2.0;
+                double spanLon = Math.max(1.6, (st.box[2] - st.box[0]) * 1.35);
+                double spanLat = Math.max(1.3, (st.box[3] - st.box[1]) * 1.35);
+                lon0 = cx - spanLon / 2.0;
+                lon1 = cx + spanLon / 2.0;
+                lat0 = cy - spanLat / 2.0;
+                lat1 = cy + spanLat / 2.0;
+                break;
+            }
+        }
+        float pad = Ui.dp(getContext(), 16);
+        double sx = (w - pad * 2f) / (lon1 - lon0);
+        double sy = (h - pad * 2f) / (lat1 - lat0);
+        scale = Math.min(sx, sy);
+        double usedW = (lon1 - lon0) * scale;
+        double usedH = (lat1 - lat0) * scale;
+        originX = (float) ((w - usedW) / 2.0);
+        originY = (float) ((h - usedH) / 2.0);
+    }
+
+    private float[] project(double lon, double lat) {
         float[] out = new float[2];
-        out[0] = pad + x * (w - pad * 2f);
-        out[1] = pad + y * (h - pad * 2f);
+        out[0] = (float) (originX + (lon - lon0) * scale);
+        out[1] = (float) (originY + (lat1 - lat) * scale);
         return out;
     }
 
@@ -212,41 +273,34 @@ final class WorkMapView extends View {
         int w = getWidth();
         int h = getHeight();
         if (w <= 0 || h <= 0) return;
-        float pad = Ui.dp(getContext(), 18);
-        shape.rewind();
-        boolean moved = false;
-        for (int i = 0; i + 1 < OUTLINE.length; i += 2) {
-            float[] p = project(OUTLINE[i], OUTLINE[i + 1], w, h, pad);
-            if (!moved) {
-                shape.moveTo(p[0], p[1]);
-                moved = true;
-            } else {
-                shape.lineTo(p[0], p[1]);
+        if (!laidOut || xs.length != jobs.size()) layoutDots();
+        canvas.drawColor(Vigo.NAVY);
+        int pathAt = 0;
+        for (int i = 0; i < states.size() && pathAt < paths.size(); i++) {
+            WorkGeo.State st = states.get(i);
+            boolean on = zoom != null && st.id.equals(zoom);
+            for (int r = 0; r < st.rings.size() && pathAt < paths.size(); r++) {
+                canvas.drawPath(paths.get(pathAt), on ? landOn : land);
+                canvas.drawPath(paths.get(pathAt), edge);
+                pathAt++;
             }
         }
-        shape.close();
-        canvas.drawPath(shape, land);
-        canvas.drawPath(shape, edge);
-
-        float pulse = (SystemClock.uptimeMillis() % 1800L) / 1800f;
-        float breathe = 0.82f + 0.18f * (float) Math.sin(pulse * Math.PI * 2.0);
-        float dotR = Ui.dp(getContext(), 5);
-        if (xs.length != jobs.size()) layoutDots();
+        float pulse = (SystemClock.uptimeMillis() % 1600L) / 1600f;
+        float dotR = Ui.dp(getContext(), 6);
         for (int i = 0; i < jobs.size() && i < xs.length; i++) {
-            WorkClient.Job job = jobs.get(i);
-            int color = WorkClient.color(job.trade);
-            if (job.hot) {
-                float grow = Ui.dp(getContext(), 6) + Ui.dp(getContext(), 12) * pulse;
-                ring.setColor(WorkClient.CORAL);
-                ring.setAlpha((int) (200 * (1f - pulse)));
+            if (xs[i] < -100) continue;
+            WorkOrder job = jobs.get(i);
+            if (job.hotJob) {
+                float grow = Ui.dp(getContext(), 5) + Ui.dp(getContext(), 14) * pulse;
+                ring.setColor(Vigo.CORAL);
+                ring.setAlpha((int) (210 * (1f - pulse)));
                 canvas.drawCircle(xs[i], ys[i], dotR + grow, ring);
             }
-            dot.setColor(color);
-            dot.setAlpha((int) (255 * (i == selected ? 1f : breathe)));
+            dot.setColor(job.dotColor());
             canvas.drawCircle(xs[i], ys[i], i == selected ? dotR + Ui.dp(getContext(), 2) : dotR, dot);
             if (i == selected) {
                 pick.setAlpha(230);
-                canvas.drawCircle(xs[i], ys[i], dotR + Ui.dp(getContext(), 5), pick);
+                canvas.drawCircle(xs[i], ys[i], dotR + Ui.dp(getContext(), 6), pick);
             }
         }
     }
