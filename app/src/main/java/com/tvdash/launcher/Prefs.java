@@ -159,10 +159,69 @@ final class Prefs {
         return pin != null ? pin : newPin();
     }
 
+    /** New PIN, and every phone that already paired is signed out. */
     String newPin() {
-        String pin = String.format(java.util.Locale.US, "%04d", new java.security.SecureRandom().nextInt(10000));
-        sp.edit().putString("pin", pin).apply();
+        String pin = String.format(Locale.US, "%04d", new java.security.SecureRandom().nextInt(10000));
+        sp.edit().putString("pin", pin).remove(DEVICES).apply();
         return pin;
+    }
+
+    private static final String DEVICES = "deviceTokens";
+    private static final int MAX_DEVICES = 20;
+
+    /** True when this phone's saved token is still allowed. Never expires on its own. */
+    synchronized boolean isDevice(String token) {
+        if (token == null || token.length() != 32) return false;
+        byte[] given;
+        try {
+            given = token.getBytes("UTF-8");
+        } catch (java.io.UnsupportedEncodingException e) {
+            return false;
+        }
+        boolean found = false;
+        for (String saved : deviceTokens()) {
+            if (saved.length() != token.length()) continue;
+            try {
+                if (java.security.MessageDigest.isEqual(saved.getBytes("UTF-8"), given)) found = true;
+            } catch (java.io.UnsupportedEncodingException ignored) {
+            }
+        }
+        return found;
+    }
+
+    /** 128-bit token for one phone. Kept until Sign out phones / New PIN. */
+    synchronized String newDevice() {
+        byte[] buf = new byte[16];
+        new java.security.SecureRandom().nextBytes(buf);
+        StringBuilder hex = new StringBuilder(32);
+        for (byte b : buf) hex.append(String.format(Locale.US, "%02x", b & 0xFF));
+        String token = hex.toString();
+        List<String> all = deviceTokens();
+        all.add(token);
+        while (all.size() > MAX_DEVICES) all.remove(0);
+        saveDevices(all);
+        return token;
+    }
+
+    synchronized void revokeDevice(String token) {
+        if (token == null) return;
+        List<String> kept = new ArrayList<>();
+        for (String saved : deviceTokens()) if (!saved.equals(token)) kept.add(saved);
+        saveDevices(kept);
+    }
+
+    private List<String> deviceTokens() {
+        List<String> out = new ArrayList<>();
+        for (String s : sp.getString(DEVICES, "").split("\n")) {
+            if (s.length() == 32 && s.matches("[0-9a-f]{32}")) out.add(s);
+        }
+        return out;
+    }
+
+    private void saveDevices(List<String> tokens) {
+        StringBuilder b = new StringBuilder();
+        for (String t : tokens) b.append(t).append('\n');
+        sp.edit().putString(DEVICES, b.toString()).apply();
     }
 
     boolean showAllApps() { return sp.getBoolean("showAllApps", true); }

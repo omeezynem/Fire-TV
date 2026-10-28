@@ -702,8 +702,12 @@ public class MainActivity extends Activity implements Hub.Screen {
             b.append("   \u00B7   ").append(gb(mi.availMem)).append(" memory free");
         }
         TvServer server = TvServer.running;
-        String address = server == null ? null : server.address();
-        if (address != null) b.append("   \u00B7   Phone remote: ").append(address.substring("http://".length()));
+        if (server != null) {
+            for (String url : server.urls()) {
+                String host = url.substring("http://".length());
+                b.append("   \u00B7   ").append(host.startsWith("100.") ? "Tailscale " : "Phone remote: ").append(host);
+            }
+        }
         return b.toString();
     }
 
@@ -984,6 +988,7 @@ public class MainActivity extends Activity implements Hub.Screen {
             return;
         }
         String pin = prefs.pin();
+        java.util.List<String> urls = server.urls();
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
@@ -1003,16 +1008,26 @@ public class MainActivity extends Activity implements Hub.Screen {
         or.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 4));
         text.addView(or);
         text.addView(Ui.text(this, address.substring("http://".length()), 24, Ui.ACCENT, true));
+        String vpn = null;
+        for (String url : urls) {
+            if (url.startsWith("http://100.") && !url.equals(address)) vpn = url.substring("http://".length());
+        }
+        if (vpn != null) {
+            TextView away = Ui.text(this, "Away from home (Tailscale)", 15, 0xCCFFFFFF, false);
+            away.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 4));
+            text.addView(away);
+            text.addView(Ui.text(this, vpn, 18, Ui.ACCENT, true));
+        }
         TextView pinLabel = Ui.text(this, "PIN", 15, 0xCCFFFFFF, false);
         pinLabel.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
         text.addView(pinLabel);
         TextView pinText = Ui.text(this, pin, 34, Color.WHITE, true);
         pinText.setLetterSpacing(0.3f);
         text.addView(pinText);
-        TextView tip = Ui.text(this, "Your phone must be on the same Wi‑Fi as the TV. "
-                + "Tip: use \"Add to Home Screen\" on your phone to keep it like an app.", 13, 0xB3FFFFFF, false);
+        TextView tip = Ui.text(this, "You only enter the PIN once. The phone stays signed in, at home or over Tailscale, "
+                + "until you tap Sign out phones. Use Add to Home Screen to keep it like an app.", 13, 0xB3FFFFFF, false);
         tip.setPadding(0, Ui.dp(this, 14), 0, 0);
-        tip.setMaxWidth(Ui.dp(this, 320));
+        tip.setMaxWidth(Ui.dp(this, 340));
         text.addView(tip);
         box.addView(text);
 
@@ -1020,7 +1035,7 @@ public class MainActivity extends Activity implements Hub.Screen {
                 .setTitle("Phone remote")
                 .setView(box)
                 .setPositiveButton("Done", null)
-                .setNeutralButton("New PIN", (d, w) -> {
+                .setNeutralButton("Sign out phones", (d, w) -> {
                     prefs.newPin();
                     showPhoneRemote();
                 })

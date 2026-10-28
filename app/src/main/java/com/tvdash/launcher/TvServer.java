@@ -22,12 +22,14 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -38,8 +40,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Tiny HTTP server on the home network. Serves the phone remote page and a JSON API the page uses to control
- * the TV live. Every /api call except /api/ping needs the 4-digit PIN shown on the TV.
+ * Tiny HTTP server. Serves the phone remote page and a JSON API the page uses to control the TV live.
+ * Listens on every interface, so a phone can reach it on the home network or over a VPN such as Tailscale.
+ * The first successful PIN mints a device token. After that the phone sends the token, which stays valid
+ * until Sign out phones. Wrong PINs from phones that are not paired still lock out for a few minutes.
  */
 final class TvServer {
     static final int FIRST_PORT = 8080;
@@ -69,21 +73,36 @@ final class TvServer {
         return port;
     }
 
-    /** e.g. http://192.168.1.50:8080, or null when the TV has no network address yet. */
+    /** e.g. http://192.168.1.50:8080, or null when the TV has no network address yet. LAN is preferred. */
     String address() {
-        String ip = localIp();
-        return ip == null || port == 0 ? null : "http://" + ip + ":" + port;
+        List<String> urls = urls();
+        return urls.isEmpty() ? null : urls.get(0);
+    }
+
+    /** Every address the phone can open, LAN first, then a Tailscale 100.x address when the TV has one. */
+    List<String> urls() {
+        List<String> out = new ArrayList<>();
+        if (port == 0) return out;
+        for (String ip : localIps()) out.add("http://" + ip + ":" + port);
+        return out;
     }
 
     void start() {
         Thread t = new Thread(() -> {
             for (int p = FIRST_PORT; p < FIRST_PORT + 10 && socket == null; p++) {
+                ServerSocket s = null;
                 try {
-                    ServerSocket s = new ServerSocket(p);
+                    s = new ServerSocket();
+                    // Bind the wildcard address so VPN interfaces (Tailscale 100.x) are included.
                     s.setReuseAddress(true);
+                    s.bind(new InetSocketAddress(p));
                     socket = s;
                     port = p;
                 } catch (IOException ignored) {
+                    if (s != null) try {
+                        s.close();
+                    } catch (IOException close) {
+                    }
                 }
             }
             ServerSocket s = socket;
@@ -111,21 +130,38 @@ final class TvServer {
         pool.shutdownNow();
     }
 
-    static String localIp() {
+    /** IPv4 addresses worth showing. Home LAN first, then Tailscale (100.64.0.0/10), which is not site-local. */
+    static List<String> localIps() {
+        List<String> lan = new ArrayList<>();
+        List<String> vpn = new ArrayList<>();
+        List<String> other = new ArrayList<>();
         try {
-            String fallback = null;
             for (NetworkInterface ni : Collections.list(NetworkInterface.getNetworkInterfaces())) {
                 if (!ni.isUp() || ni.isLoopback()) continue;
                 for (InetAddress a : Collections.list(ni.getInetAddresses())) {
-                    if (!(a instanceof Inet4Address) || a.isLoopbackAddress()) continue;
-                    if (a.isSiteLocalAddress()) return a.getHostAddress();
-                    if (fallback == null) fallback = a.getHostAddress();
+                    if (!(a instanceof Inet4Address) || a.isLoopbackAddress() || a.isLinkLocalAddress()) continue;
+                    String host = a.getHostAddress();
+                    if (host == null || lan.contains(host) || vpn.contains(host) || other.contains(host)) continue;
+                    if (a.isSiteLocalAddress()) lan.add(host);
+                    else if (isTailscale((Inet4Address) a)) vpn.add(host);
+                    else other.add(host);
                 }
             }
-            return fallback;
-        } catch (Exception e) {
-            return null;
+        } catch (Exception ignored) {
         }
+        List<String> all = new ArrayList<>();
+        all.addAll(lan);
+        all.addAll(vpn);
+        if (all.isEmpty()) all.addAll(other);
+        return all;
+    }
+
+    /** Tailscale's IPv4 range is the carrier-grade NAT block 100.64.0.0/10. */
+    static boolean isTailscale(Inet4Address a) {
+        byte[] b = a.getAddress();
+        int first = b[0] & 0xFF;
+        int second = b[1] & 0xFF;
+        return first == 100 && second >= 64 && second <= 127;
     }
 
     // ---------------------------------------------------------------- HTTP plumbing
@@ -276,7 +312,7 @@ final class TvServer {
         if (p.equals("/api/ping")) return Response.json(200, new JSONObject().put("ok", true).put("name", "TV Dash"));
         if (!p.startsWith("/api/")) return Response.error(404, "Not found");
 
-        Response denied = checkPin(r);
+        Response denied = authorize(r);
         if (denied != null) return denied;
 
         boolean post = r.method.equals("POST");
@@ -286,6 +322,8 @@ final class TvServer {
         }
         if (!post) return Response.error(404, "Not found");
         switch (p) {
+            case "/api/pair": return pair(r);
+            case "/api/signout": return signOut(r);
             case "/api/launch": return launch(r.json().optString("pkg"));
             case "/api/home": return home();
             case "/api/screensaver": return screensaver(r.json().optBoolean("on", true));
@@ -299,20 +337,49 @@ final class TvServer {
         }
     }
 
-    private synchronized Response checkPin(Request r) {
+    /**
+     * A paired phone sends its device token and is let in from any address. A PIN is only for the first
+     * pairing. Wrong PINs still count toward the lockout. A dead token does not, so signed-out phones
+     * cannot lock the TV.
+     */
+    private synchronized Response authorize(Request r) {
+        String device = headerOrQuery(r, "x-device", "device");
+        if (prefs.isDevice(device)) return null;
+
         long now = System.currentTimeMillis();
         if (now < lockedUntil) return Response.error(429, "Too many wrong PINs. Try again in a few minutes.");
-        String given = r.headers.get("x-pin");
-        if (given == null) given = r.query.get("pin");
-        if (prefs.pin().equals(given)) {
+
+        String pin = headerOrQuery(r, "x-pin", "pin");
+        if (pin != null && prefs.pin().equals(pin)) {
             failures = 0;
             return null;
         }
+        if (device != null && pin == null) return Response.error(401, "This phone was signed out");
         if (++failures >= MAX_FAILURES) {
             failures = 0;
             lockedUntil = now + LOCKOUT_MS;
         }
         return Response.error(401, "Wrong PIN");
+    }
+
+    private static String headerOrQuery(Request r, String header, String query) {
+        String v = r.headers.get(header);
+        if (v == null || v.isEmpty()) v = r.query.get(query);
+        if (v == null) return null;
+        v = v.trim();
+        return v.isEmpty() ? null : v;
+    }
+
+    /** PIN just succeeded. Mint a token this phone can keep using, including from another address. */
+    private Response pair(Request r) throws Exception {
+        String pin = headerOrQuery(r, "x-pin", "pin");
+        if (pin == null || !prefs.pin().equals(pin)) return Response.error(401, "Enter the PIN from the TV to sign in");
+        return Response.json(200, new JSONObject().put("ok", true).put("device", prefs.newDevice()));
+    }
+
+    private Response signOut(Request r) {
+        prefs.revokeDevice(headerOrQuery(r, "x-device", "device"));
+        return Response.ok();
     }
 
     private Response asset(String name, String type) throws IOException {
@@ -353,6 +420,9 @@ final class TvServer {
         s.put("onScreen", Hub.screen != null);
         s.put("saverOn", Hub.saverOn);
         s.put("photos", Photos.list(app).size());
+        JSONArray addresses = new JSONArray();
+        for (String url : urls()) addresses.put(url);
+        s.put("addresses", addresses);
         s.put("settings", new JSONObject()
                 .put("city", prefs.city())
                 .put("fahrenheit", prefs.fahrenheit())

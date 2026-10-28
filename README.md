@@ -16,8 +16,8 @@ TV Dash is a custom dashboard app for Amazon Fire TV (and any Android TV). It ru
 ## Phone remote (works live with the TV)
 TV Dash includes a phone remote. Your phone opens it in the browser, so there's nothing to install from an app store.
 
-1. On the TV, go to the **System** row and choose **Phone remote**. Scan the QR code with your phone's camera. You can also type the address and 4-digit PIN it shows.
-2. On iPhone, tap **Share → Add to Home Screen**. On Android, use **⋮ → Add to Home screen**. It then opens like a normal app.
+1. On the TV, go to the **System** row and choose **Phone remote**. Scan the QR code with your phone's camera, or type the address and the 4-digit PIN. You only do this once.
+2. On iPhone, tap **Share → Add to Home Screen**. On Android, use **⋮ → Add to Home screen**. It then opens like a normal app, already signed in.
 
 From your phone you can:
 - Open any TV app. The app list and icons come straight from the TV.
@@ -28,7 +28,9 @@ From your phone you can:
 - Change the weather city, °F/°C, clock style, photo timing and screensaver timing. The TV updates instantly.
 - Set the stock, ETF, and crypto symbols for the market ticker.
 
-The phone must be on the same Wi‑Fi as the TV. Every request needs the PIN, and 5 wrong PINs lock the remote for 5 minutes. **New PIN** on the TV signs out every phone. The remote keeps running in the background and starts when the TV turns on.
+The first time, the phone trades that PIN for a saved sign-in. After that it does not ask again, even if you close the page or the TV is reached at a different address. At home, use the Wi‑Fi address. Away from home, use the Tailscale address shown on the TV (it looks like `100.x.x.x`). The remote page also offers that link once you're signed in; open it once and add that to your home screen. The TV listens on every network interface, so a VPN address works as well as the home network.
+
+Five wrong PINs still lock pairing for 5 minutes. **Sign out phones** on the TV makes a new PIN and signs every phone out. The remote keeps running in the background and starts when the TV turns on.
 
 **Opening apps while you're watching something else:** Android 10+ (Fire OS 8) blocks background apps from switching screens. While TV Dash is on screen this always works. To make it work at any time, allow "display over other apps" once from a computer:
 `adb shell appops set com.tvdash.launcher SYSTEM_ALERT_WINDOW allow`
