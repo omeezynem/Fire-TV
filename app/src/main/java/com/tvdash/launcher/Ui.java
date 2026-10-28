@@ -1,10 +1,12 @@
 package com.tvdash.launcher;
 
 import android.content.Context;
+import android.graphics.Outline;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
+import android.view.ViewOutlineProvider;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -70,7 +72,33 @@ final class Ui {
     }
 
     static void noSystemHighlight(View v) {
-        if (Build.VERSION.SDK_INT >= 26) v.setDefaultFocusHighlightEnabled(false);
+        if (Build.VERSION.SDK_INT >= 26) {
+            try {
+                v.setDefaultFocusHighlightEnabled(false);
+            } catch (RuntimeException ignored) {
+            }
+        }
+    }
+
+    /** Round clip that does not depend on the background drawable's outline (that crashes some Fire OS builds). */
+    static void roundClip(View v, final float radiusPx) {
+        if (v == null) return;
+        try {
+            v.setOutlineProvider(new ViewOutlineProvider() {
+                @Override public void getOutline(View view, Outline outline) {
+                    int w = view.getWidth();
+                    int h = view.getHeight();
+                    if (w <= 0 || h <= 0) {
+                        outline.setRect(0, 0, 0, 0);
+                        return;
+                    }
+                    float r = Math.min(radiusPx, Math.min(w, h) / 2f);
+                    outline.setRoundRect(0, 0, w, h, r);
+                }
+            });
+            v.setClipToOutline(true);
+        } catch (RuntimeException ignored) {
+        }
     }
 
     /** Scale, lift, and a soft edge. Draw-only animation so focus stays quick on a stick. */
@@ -92,7 +120,7 @@ final class Ui {
         noSystemHighlight(tile);
         float radius = dp(c, 20);
         tile.setBackground(round(TILE_BG, radius));
-        tile.setClipToOutline(true);
+        roundClip(tile, radius);
         final View edge = new View(c);
         edge.setBackground(focusEdge(c, radius));
         edge.setAlpha(0f);

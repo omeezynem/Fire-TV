@@ -37,11 +37,15 @@ final class RemoteControl {
                 .put("full", adb);
     }
 
+    /** Safe to call while building a screen. Does not open a socket. */
     static String statusLine(Context context) {
-        if (AdbRemote.ready()) return "Full remote, any app";
-        if (RemoteAccessibility.enabled(context)) return "Limited (accessibility)";
-        if (AdbRemote.portOpen()) return "ADB is on. Tap Connect ADB.";
-        return "Not set up";
+        try {
+            if (AdbRemote.ready()) return "Full remote, any app";
+            if (RemoteAccessibility.enabled(context)) return "Limited (accessibility)";
+            return "Not set up";
+        } catch (RuntimeException e) {
+            return "Not set up";
+        }
     }
 
     /** @return null on success, or a sentence the phone can show */

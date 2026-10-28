@@ -362,7 +362,7 @@ public class MainActivity extends Activity implements Hub.Screen {
         int inset = Ui.dp(this, 18);
         right.setPadding(inset, Ui.dp(this, 14), inset, Ui.dp(this, 14));
         right.setBackground(Ui.glass(this));
-        right.setClipToOutline(true);
+        Ui.roundClip(right, Ui.dp(this, 24));
         LinearLayout now = new LinearLayout(this);
         now.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
         weatherSymbol = Ui.text(this, "", 32, Color.WHITE, false);
@@ -404,7 +404,7 @@ public class MainActivity extends Activity implements Hub.Screen {
         marketsRow.setGravity(Gravity.CENTER_VERTICAL);
         marketsRow.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));
         marketsRow.setBackground(Ui.glass(this, Ui.dp(this, 18)));
-        marketsRow.setClipToOutline(true);
+        Ui.roundClip(marketsRow, Ui.dp(this, 18));
         marketsScroll.addView(marketsRow);
         bar.addView(marketsScroll, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         marketsBar = bar;
@@ -803,6 +803,7 @@ public class MainActivity extends Activity implements Hub.Screen {
     }
 
     private void showMarkets(List<Markets.Quote> quotes) {
+        if (quotes == null) quotes = new ArrayList<Markets.Quote>();
         String key = marketKey(quotes);
         boolean rebuild = !key.equals(marketKey);
         if (quotes.isEmpty()) {

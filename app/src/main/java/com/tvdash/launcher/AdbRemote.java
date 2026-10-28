@@ -1,6 +1,7 @@
 package com.tvdash.launcher;
 
 import android.content.Context;
+import android.os.Looper;
 import android.util.Base64;
 
 import java.io.File;
@@ -54,9 +55,13 @@ final class AdbRemote {
         }
     }
 
-    /** Quick check that something is listening. Cached so the phone poll doesn't hammer the port. */
+    /**
+     * Quick check that something is listening. Never call this on the UI thread: a socket connect
+     * there throws NetworkOnMainThreadException and kills the screen. Cached so polls stay cheap.
+     */
     static boolean portOpen() {
         if (ready()) return true;
+        if (Looper.getMainLooper().getThread() == Thread.currentThread()) return portWasOpen;
         long now = System.currentTimeMillis();
         if (now - portCheckedAt < 4000) return portWasOpen;
         boolean open = probe();
@@ -98,7 +103,7 @@ final class AdbRemote {
         try {
             s.connect(new InetSocketAddress("127.0.0.1", PORT), 400);
             return true;
-        } catch (IOException e) {
+        } catch (Exception e) {
             return false;
         } finally {
             try {

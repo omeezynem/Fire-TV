@@ -142,7 +142,10 @@ public class SettingsActivity extends Activity {
         row(list, "Version", this::version, null);
 
         setContentView(scroll);
-        if (list.getChildCount() > 2) list.getChildAt(2).requestFocus();
+        try {
+            if (list.getChildCount() > 2) list.getChildAt(2).requestFocus();
+        } catch (RuntimeException ignored) {
+        }
     }
 
     private String version() {
@@ -163,10 +166,14 @@ public class SettingsActivity extends Activity {
     }
 
     private String tickerValue(boolean crypto) {
-        String text = crypto ? prefs.cryptoText() : prefs.stocksText();
-        if (text.isEmpty()) return "Hidden";
-        if (text.length() > 32) return (crypto ? prefs.crypto().size() : prefs.stocks().size()) + " symbols";
-        return text;
+        try {
+            String text = crypto ? prefs.cryptoText() : prefs.stocksText();
+            if (text == null || text.isEmpty()) return "Hidden";
+            if (text.length() > 32) return (crypto ? prefs.crypto().size() : prefs.stocks().size()) + " symbols";
+            return text;
+        } catch (RuntimeException e) {
+            return "Hidden";
+        }
     }
 
     private void section(LinearLayout list, String name) {
@@ -182,7 +189,7 @@ public class SettingsActivity extends Activity {
         shell.setClickable(onClick != null);
         Ui.noSystemHighlight(shell);
         shell.setBackground(Ui.glass(this, radius));
-        shell.setClipToOutline(true);
+        Ui.roundClip(shell, radius);
 
         LinearLayout r = new LinearLayout(this);
         r.setGravity(Gravity.CENTER_VERTICAL);
