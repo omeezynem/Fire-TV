@@ -1,0 +1,830 @@
+package com.tvdash.launcher;
+
+import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.StatFs;
+import android.provider.Settings;
+import android.util.DisplayMetrics;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * The home screen: clock, weather, favorite apps, all apps, system shortcuts, photo background and screensaver.
+ * Also takes live commands from the phone remote through {@link Hub}.
+ */
+public class MainActivity extends Activity implements Hub.Screen {
+    private static final long WEATHER_REFRESH_MS = 20 * 60 * 1000;
+    private static final int FAV_VISIBLE = 5;
+    private static final int GRID_COLUMNS = 6;
+
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private final ExecutorService io = Executors.newFixedThreadPool(2);
+
+    private Prefs prefs;
+    private Slideshow slideshow;
+
+    private View dashboard;
+    private View scrim;
+    private ScrollView scroll;
+    private TextView clock, ampm, date, status;
+    private TextView weatherSymbol, weatherTemp, weatherDesc, weatherPlace;
+    private LinearLayout forecast;
+    private TextView favHeading, appsHeading;
+    private LinearLayout favRow, appsGrid, systemRow;
+    private View appsSection;
+    private LinearLayout saverClockBox;
+    private TextView saverClock, saverWeather;
+    private TextView messageBanner;
+
+    private List<AppEntry> apps = new ArrayList<>();
+    private String refocusPkg;
+    private boolean saverOn, swallowKeyUp;
+    private long weatherAt;
+    private String weatherKey;
+    private int sidePad, gap;
+
+    private final Runnable clockTick = new Runnable() {
+        @Override public void run() {
+            updateClock();
+            long now = System.currentTimeMillis();
+            ui.postDelayed(this, 60000 - now % 60000 + 50);
+        }
+    };
+    private final Runnable weatherTick = new Runnable() {
+        @Override public void run() {
+            refreshWeather(true);
+        }
+    };
+    private final Runnable idle = this::enterScreensaver;
+    private final Runnable hideMessage = () -> messageBanner.animate().alpha(0f).setDuration(500).withEndAction(() -> {
+        if (messageBanner.getAlpha() == 0f) messageBanner.setVisibility(View.GONE);
+    }).start();
+
+    private final BroadcastReceiver packagesChanged = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            loadApps();
+        }
+    };
+
+    @Override
+    protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        prefs = new Prefs(this);
+        sidePad = Ui.dp(this, 48);
+        gap = Ui.dp(this, 16);
+        setContentView(buildScreen());
+
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+        slideshow = new Slideshow((ImageView) findViewById(1), (ImageView) findViewById(2), ui, io,
+                Math.max(dm.widthPixels, dm.heightPixels), Math.min(dm.widthPixels, dm.heightPixels));
+
+        IntentFilter f = new IntentFilter();
+        f.addAction(Intent.ACTION_PACKAGE_ADDED);
+        f.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        f.addAction(Intent.ACTION_PACKAGE_CHANGED);
+        f.addDataScheme("package");
+        registerReceiver(packagesChanged, f);
+        RemoteService.start(this);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        appsSection.setVisibility(prefs.showAllApps() ? View.VISIBLE : View.GONE);
+        loadApps();
+        ui.removeCallbacks(clockTick);
+        ui.post(clockTick);
+        slideshow.start(Photos.slideshowSources(this, prefs), prefs.slideSeconds());
+        refreshWeather(false);
+        exitScreensaver();
+        Hub.screen = this;
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Hub.screen = null;
+        ui.removeCallbacks(clockTick);
+        ui.removeCallbacks(weatherTick);
+        ui.removeCallbacks(idle);
+        slideshow.stop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(packagesChanged);
+        io.shutdownNow();
+    }
+
+    /** Pressing Home while already home jumps back to the top. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        scroll.smoothScrollTo(0, 0);
+        focusFirstTile();
+    }
+
+    @Override
+    public void onBackPressed() {
+        // A home screen has nowhere to go back to; just return to the top.
+        if (scroll.getScrollY() > 0) {
+            scroll.smoothScrollTo(0, 0);
+            focusFirstTile();
+        }
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent ev) {
+        if (saverOn) {
+            if (ev.getAction() == KeyEvent.ACTION_DOWN) {
+                exitScreensaver();
+                swallowKeyUp = true;
+            }
+            return true;
+        }
+        if (swallowKeyUp && ev.getAction() == KeyEvent.ACTION_UP) {
+            swallowKeyUp = false;
+            return true;
+        }
+        resetIdle();
+        if (ev.getAction() == KeyEvent.ACTION_UP && ev.getKeyCode() == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD) {
+            slideshow.skip();
+            return true;
+        }
+        return super.dispatchKeyEvent(ev);
+    }
+
+    // ---------------------------------------------------------------- layout
+
+    private View buildScreen() {
+        FrameLayout root = new FrameLayout(this);
+        GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFF0B1426, 0xFF1F2A55, 0xFF3A1F4F});
+        root.setBackground(base);
+
+        for (int id = 1; id <= 2; id++) {
+            ImageView bg = new ImageView(this);
+            bg.setId(id);
+            bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            bg.setAlpha(0f);
+            root.addView(bg, matchParent());
+        }
+
+        scrim = new View(this);
+        scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0xB3000000, 0x59000000, 0xE6000000}));
+        root.addView(scrim, matchParent());
+
+        LinearLayout dash = new LinearLayout(this);
+        dash.setOrientation(LinearLayout.VERTICAL);
+        dash.addView(buildTopBar());
+
+        scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setClipChildren(false);
+        scroll.setSmoothScrollingEnabled(true);
+        LinearLayout sections = new LinearLayout(this);
+        sections.setOrientation(LinearLayout.VERTICAL);
+        sections.setClipChildren(false);
+        sections.setPadding(0, 0, 0, Ui.dp(this, 48));
+
+        favHeading = heading("Favorites");
+        sections.addView(favHeading);
+        favRow = row();
+        sections.addView(scroller(favRow));
+
+        LinearLayout appsBox = new LinearLayout(this);
+        appsBox.setOrientation(LinearLayout.VERTICAL);
+        appsBox.setClipChildren(false);
+        appsHeading = heading("All apps");
+        appsBox.addView(appsHeading);
+        appsGrid = new LinearLayout(this);
+        appsGrid.setOrientation(LinearLayout.VERTICAL);
+        appsGrid.setClipChildren(false);
+        appsGrid.setPadding(sidePad, 0, sidePad, 0);
+        appsBox.addView(appsGrid);
+        appsSection = appsBox;
+        sections.addView(appsBox);
+
+        sections.addView(heading("System"));
+        systemRow = row();
+        sections.addView(scroller(systemRow));
+        buildSystemRow();
+
+        scroll.addView(sections);
+        dash.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        dashboard = dash;
+        root.addView(dash, matchParent());
+
+        // Screensaver clock, shown only while the dashboard is hidden.
+        saverClockBox = new LinearLayout(this);
+        saverClockBox.setOrientation(LinearLayout.VERTICAL);
+        saverClockBox.setGravity(Gravity.END);
+        saverClock = Ui.text(this, "", 64, Color.WHITE, false);
+        saverWeather = Ui.text(this, "", 20, 0xDDFFFFFF, false);
+        saverClockBox.addView(saverClock);
+        saverClockBox.addView(saverWeather);
+        saverClockBox.setAlpha(0f);
+        saverClockBox.setVisibility(View.GONE);
+        FrameLayout.LayoutParams sl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.END);
+        sl.setMargins(0, 0, sidePad, Ui.dp(this, 36));
+        root.addView(saverClockBox, sl);
+
+        // Messages sent from the phone.
+        messageBanner = Ui.text(this, "", 26, Color.WHITE, true);
+        messageBanner.setGravity(Gravity.CENTER);
+        int mp = Ui.dp(this, 22);
+        messageBanner.setPadding(mp * 2, mp, mp * 2, mp);
+        messageBanner.setBackground(Ui.round(0xE6142850, Ui.dp(this, 18)));
+        messageBanner.setElevation(Ui.dp(this, 12));
+        messageBanner.setMaxWidth(screenWidth() * 3 / 4);
+        messageBanner.setVisibility(View.GONE);
+        root.addView(messageBanner, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        return root;
+    }
+
+    private View buildTopBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setPadding(sidePad, Ui.dp(this, 28), sidePad, Ui.dp(this, 8));
+
+        LinearLayout left = new LinearLayout(this);
+        left.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout timeRow = new LinearLayout(this);
+        timeRow.setGravity(Gravity.BOTTOM);
+        clock = Ui.text(this, "", 64, Color.WHITE, false);
+        clock.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
+        ampm = Ui.text(this, "", 22, 0xCCFFFFFF, false);
+        ampm.setPadding(Ui.dp(this, 8), 0, 0, Ui.dp(this, 8));
+        timeRow.addView(clock);
+        timeRow.addView(ampm);
+        left.addView(timeRow);
+        date = Ui.text(this, "", 20, 0xE6FFFFFF, true);
+        date.setPadding(0, Ui.dp(this, 6), 0, 0);
+        left.addView(date);
+        status = Ui.text(this, "", 13, 0xB3FFFFFF, false);
+        status.setPadding(0, Ui.dp(this, 8), 0, 0);
+        left.addView(status);
+        bar.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        LinearLayout right = new LinearLayout(this);
+        right.setOrientation(LinearLayout.VERTICAL);
+        right.setGravity(Gravity.END);
+        LinearLayout now = new LinearLayout(this);
+        now.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        weatherSymbol = Ui.text(this, "", 40, 0xFFFFD45A, false);
+        weatherSymbol.setPadding(0, 0, Ui.dp(this, 10), 0);
+        weatherTemp = Ui.text(this, "--°", 52, Color.WHITE, false);
+        now.addView(weatherSymbol);
+        now.addView(weatherTemp);
+        right.addView(now);
+        weatherDesc = Ui.text(this, "Loading weather…", 16, 0xE6FFFFFF, true);
+        weatherDesc.setGravity(Gravity.END);
+        right.addView(weatherDesc);
+        weatherPlace = Ui.text(this, "", 13, 0xB3FFFFFF, false);
+        weatherPlace.setGravity(Gravity.END);
+        weatherPlace.setPadding(0, Ui.dp(this, 4), 0, 0);
+        right.addView(weatherPlace);
+        forecast = new LinearLayout(this);
+        forecast.setPadding(0, Ui.dp(this, 10), 0, 0);
+        right.addView(forecast);
+        bar.addView(right);
+        return bar;
+    }
+
+    private TextView heading(String s) {
+        TextView t = Ui.text(this, s, 17, 0xF2FFFFFF, true);
+        t.setPadding(sidePad, Ui.dp(this, 14), sidePad, Ui.dp(this, 2));
+        return t;
+    }
+
+    private LinearLayout row() {
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        r.setClipChildren(false);
+        r.setPadding(sidePad, Ui.dp(this, 12), sidePad, Ui.dp(this, 12));
+        return r;
+    }
+
+    private HorizontalScrollView scroller(LinearLayout row) {
+        HorizontalScrollView h = new HorizontalScrollView(this);
+        h.setHorizontalScrollBarEnabled(false);
+        h.setClipChildren(false);
+        h.setClipToPadding(false);
+        h.setSmoothScrollingEnabled(true);
+        h.addView(row);
+        return h;
+    }
+
+    private static FrameLayout.LayoutParams matchParent() {
+        return new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+    }
+
+    private int screenWidth() {
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+        return Math.max(dm.widthPixels, dm.heightPixels);
+    }
+
+    // ---------------------------------------------------------------- apps
+
+    private void loadApps() {
+        final android.content.pm.PackageManager pm = getPackageManager();
+        final String self = getPackageName();
+        io.execute(() -> {
+            final List<AppEntry> loaded = AppEntry.loadAll(pm, self);
+            ui.post(() -> {
+                if (isFinishing()) return;
+                apps = loaded;
+                View focused = getCurrentFocus();
+                if (refocusPkg == null && focused != null && focused.getTag() instanceof String) {
+                    refocusPkg = (String) focused.getTag();
+                }
+                rebuildApps();
+            });
+        });
+    }
+
+    private List<String> favorites() {
+        List<String> favs = prefs.favorites();
+        if (favs == null) {
+            // First run: pin the popular streaming apps that are installed.
+            favs = new ArrayList<>();
+            for (String p : Prefs.DEFAULT_FAVORITES) {
+                if (find(p) != null && favs.size() < 8) favs.add(p);
+            }
+            prefs.setFavorites(favs);
+        }
+        return favs;
+    }
+
+    private AppEntry find(String pkg) {
+        for (AppEntry e : apps) if (e.pkg.equals(pkg)) return e;
+        return null;
+    }
+
+    private void rebuildApps() {
+        int width = screenWidth() - 2 * sidePad;
+        int favW = (width - (FAV_VISIBLE - 1) * gap) / FAV_VISIBLE;
+        int favH = favW * 9 / 16;
+        int gridGap = Ui.dp(this, 14);
+        int gridW = (width - (GRID_COLUMNS - 1) * gridGap) / GRID_COLUMNS;
+        int gridH = gridW * 9 / 16;
+
+        List<String> favs = favorites();
+        favRow.removeAllViews();
+        int shown = 0;
+        for (String p : favs) {
+            AppEntry e = find(p);
+            if (e == null) continue;
+            favRow.addView(appTile(e, favW, favH, gap, true, favHeading, "Favorites"));
+            shown++;
+        }
+        if (shown == 0) {
+            TextView hint = Ui.text(this, "Highlight any app below and press the Menu (☰) button to pin it here.",
+                    16, 0xCCFFFFFF, false);
+            hint.setPadding(0, Ui.dp(this, 20), 0, Ui.dp(this, 20));
+            favRow.addView(hint);
+        }
+
+        appsGrid.removeAllViews();
+        LinearLayout line = null;
+        for (int i = 0; i < apps.size(); i++) {
+            if (i % GRID_COLUMNS == 0) {
+                line = new LinearLayout(this);
+                line.setClipChildren(false);
+                line.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
+                appsGrid.addView(line);
+            }
+            boolean last = i % GRID_COLUMNS == GRID_COLUMNS - 1;
+            line.addView(appTile(apps.get(i), gridW, gridH, last ? 0 : gridGap, false, appsHeading, "All apps"));
+        }
+        appsHeading.setText("All apps (" + apps.size() + ")");
+
+        if (refocusPkg != null) {
+            View v = findTileFor(favRow, refocusPkg);
+            if (v == null) v = findTileFor(appsGrid, refocusPkg);
+            refocusPkg = null;
+            if (v != null) {
+                v.requestFocus();
+                return;
+            }
+        }
+        if (getCurrentFocus() == null) focusFirstTile();
+    }
+
+    private View findTileFor(ViewGroup parent, String pkg) {
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            View c = parent.getChildAt(i);
+            if (pkg.equals(c.getTag()) && c.isFocusable()) return c;
+            if (c instanceof LinearLayout) {
+                View inner = findTileFor((ViewGroup) c, pkg);
+                if (inner != null) return inner;
+            }
+        }
+        return null;
+    }
+
+    private void focusFirstTile() {
+        View first = favRow.getChildCount() > 0 && favRow.getChildAt(0).isFocusable() ? favRow.getChildAt(0) : null;
+        if (first == null && appsGrid.getChildCount() > 0) first = ((ViewGroup) appsGrid.getChildAt(0)).getChildAt(0);
+        if (first == null) first = systemRow.getChildAt(0);
+        if (first != null) first.requestFocus();
+    }
+
+    private View appTile(final AppEntry e, int w, int h, int margin, final boolean inFavorites,
+                         final TextView heading, final String headingText) {
+        FrameLayout tile = Ui.tile(this, w, h, margin, () -> heading.setText(headingText + "  ·  " + e.label));
+        tile.setTag(e.pkg);
+        if (e.banner != null) Ui.fillBanner(this, tile, e.banner);
+        else Ui.fillIconLabel(this, tile, e.icon, null, e.label, h);
+        tile.setOnClickListener(v -> launch(e));
+        tile.setOnLongClickListener(v -> {
+            showAppMenu(e, inFavorites);
+            return true;
+        });
+        tile.setOnKeyListener((v, code, ev) -> {
+            if (code != KeyEvent.KEYCODE_MENU) return false;
+            if (ev.getAction() == KeyEvent.ACTION_UP) showAppMenu(e, inFavorites);
+            return true;
+        });
+        return tile;
+    }
+
+    private void launch(AppEntry e) {
+        try {
+            startActivity(e.launch);
+        } catch (ActivityNotFoundException | SecurityException ex) {
+            Intent fallback = getPackageManager().getLaunchIntentForPackage(e.pkg);
+            if (fallback != null) {
+                startActivity(fallback);
+            } else {
+                Toast.makeText(this, "Couldn't open " + e.label, Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void showAppMenu(final AppEntry e, boolean inFavorites) {
+        final List<String> favs = new ArrayList<>(favorites());
+        final int index = favs.indexOf(e.pkg);
+        final List<String> labels = new ArrayList<>();
+        final List<Runnable> actions = new ArrayList<>();
+        if (index < 0) {
+            labels.add("★  Add to Favorites");
+            actions.add(() -> { favs.add(e.pkg); saveFavorites(favs, e.pkg); });
+        } else {
+            if (inFavorites && index > 0) {
+                labels.add("←  Move left");
+                actions.add(() -> { favs.remove(index); favs.add(index - 1, e.pkg); saveFavorites(favs, e.pkg); });
+            }
+            if (inFavorites && index < favs.size() - 1) {
+                labels.add("→  Move right");
+                actions.add(() -> { favs.remove(index); favs.add(index + 1, e.pkg); saveFavorites(favs, e.pkg); });
+            }
+            if (inFavorites && index > 0) {
+                labels.add("⇤  Move to front");
+                actions.add(() -> { favs.remove(index); favs.add(0, e.pkg); saveFavorites(favs, e.pkg); });
+            }
+            labels.add("✕  Remove from Favorites");
+            actions.add(() -> { favs.remove(index); saveFavorites(favs, null); });
+        }
+        labels.add("ℹ  App info");
+        actions.add(() -> openSettings(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", e.pkg, null))));
+        new AlertDialog.Builder(this)
+                .setTitle(e.label)
+                .setItems(labels.toArray(new String[0]), (d, which) -> actions.get(which).run())
+                .show();
+    }
+
+    private void saveFavorites(List<String> favs, String focusPkg) {
+        prefs.setFavorites(favs);
+        refocusPkg = focusPkg;
+        rebuildApps();
+        if (focusPkg != null) {
+            View v = findTileFor(favRow, focusPkg);
+            if (v != null) v.requestFocus();
+        }
+    }
+
+    // ---------------------------------------------------------------- system row
+
+    private void buildSystemRow() {
+        int width = screenWidth() - 2 * sidePad;
+        int w = (width - (GRID_COLUMNS - 1) * gap) / GRID_COLUMNS;
+        int h = w * 9 / 16;
+        addSystemTile("⚙", "Fire TV settings", w, h, () -> openSettings(new Intent(Settings.ACTION_SETTINGS)));
+        addSystemTile("⇅", "Network", w, h, () -> openSettings(new Intent(Settings.ACTION_WIFI_SETTINGS)));
+        addSystemTile("▦", "Manage apps", w, h,
+                () -> openSettings(new Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)));
+        addSystemTile("\u260E", "Phone remote", w, h, this::showPhoneRemote);
+        addSystemTile("\u2605", "Dashboard settings", w, h,
+                () -> startActivity(new Intent(this, SettingsActivity.class)));
+        addSystemTile("◐", "Screensaver now", w, h, this::enterScreensaver);
+        addSystemTile("↻", "New photo", w, h, () -> slideshow.skip());
+    }
+
+    private void addSystemTile(String symbol, final String label, int w, int h, final Runnable action) {
+        boolean first = systemRow.getChildCount() == 0;
+        FrameLayout tile = Ui.tile(this, w, h, gap, null);
+        if (first) tile.setTag("system");
+        Ui.fillIconLabel(this, tile, null, symbol, label, h);
+        tile.setOnClickListener(v -> action.run());
+        systemRow.addView(tile);
+    }
+
+    private void openSettings(Intent intent) {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException | SecurityException e) {
+            try {
+                startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (ActivityNotFoundException e2) {
+                Toast.makeText(this, "That settings screen isn't available on this device", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- clock and status
+
+    private void updateClock() {
+        Date now = new Date();
+        boolean h24 = prefs.clock24();
+        String time = new SimpleDateFormat(h24 ? "HH:mm" : "h:mm", Locale.getDefault()).format(now);
+        clock.setText(time);
+        ampm.setText(h24 ? "" : new SimpleDateFormat("a", Locale.getDefault()).format(now));
+        date.setText(new SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(now));
+        saverClock.setText(time + (h24 ? "" : " " + ampm.getText()));
+        status.setText(statusLine());
+    }
+
+    @SuppressWarnings("deprecation")
+    private String statusLine() {
+        StringBuilder b = new StringBuilder();
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo net = cm == null ? null : cm.getActiveNetworkInfo();
+        if (net != null && net.isConnected()) {
+            b.append(net.getType() == ConnectivityManager.TYPE_ETHERNET ? "Ethernet connected" : "Wi‑Fi connected");
+        } else {
+            b.append("Offline");
+        }
+        try {
+            StatFs fs = new StatFs(Environment.getDataDirectory().getPath());
+            b.append("   ·   ").append(gb(fs.getAvailableBytes())).append(" storage free");
+        } catch (RuntimeException ignored) {
+        }
+        ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        if (am != null) {
+            ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
+            am.getMemoryInfo(mi);
+            b.append("   \u00B7   ").append(gb(mi.availMem)).append(" memory free");
+        }
+        TvServer server = TvServer.running;
+        String address = server == null ? null : server.address();
+        if (address != null) b.append("   \u00B7   Phone remote: ").append(address.substring("http://".length()));
+        return b.toString();
+    }
+
+    private static String gb(long bytes) {
+        return String.format(Locale.getDefault(), "%.1f GB", bytes / 1073741824.0);
+    }
+
+    // ---------------------------------------------------------------- weather
+
+    private void refreshWeather(boolean force) {
+        final String city = prefs.city();
+        final boolean f = prefs.fahrenheit();
+        final String key = city + "|" + f;
+        long age = System.currentTimeMillis() - weatherAt;
+        ui.removeCallbacks(weatherTick);
+        if (!force && key.equals(weatherKey) && age < WEATHER_REFRESH_MS) {
+            ui.postDelayed(weatherTick, WEATHER_REFRESH_MS - age);
+            return;
+        }
+        io.execute(() -> {
+            try {
+                final Weather w = Weather.fetch(city, f);
+                ui.post(() -> {
+                    weatherAt = System.currentTimeMillis();
+                    weatherKey = key;
+                    showWeather(w, f);
+                });
+            } catch (final Exception e) {
+                ui.post(() -> {
+                    weatherDesc.setText("Weather unavailable");
+                    weatherPlace.setText(city.isEmpty() ? "Check your internet connection" : e.getMessage());
+                });
+            }
+        });
+        ui.postDelayed(weatherTick, WEATHER_REFRESH_MS);
+    }
+
+    private void showWeather(Weather w, boolean f) {
+        weatherSymbol.setText(w.symbol);
+        weatherTemp.setText(w.temp + "°");
+        weatherDesc.setText(w.condition + "  ·  Feels " + w.feelsLike + "°");
+        weatherPlace.setText(w.place + "  ·  " + w.humidity + "% humidity  ·  wind " + w.wind + (f ? " mph" : " km/h"));
+        saverWeather.setText(w.symbol + "  " + w.temp + "°  " + w.condition + "  \u00B7  " + w.place);
+        Hub.weatherLine = w.symbol + " " + w.temp + "° " + w.condition + " \u00B7 " + w.place;
+        forecast.removeAllViews();
+        for (int i = 1; i < w.days.size(); i++) {
+            Weather.Day d = w.days.get(i);
+            LinearLayout col = new LinearLayout(this);
+            col.setOrientation(LinearLayout.VERTICAL);
+            col.setGravity(Gravity.CENTER_HORIZONTAL);
+            col.setPadding(Ui.dp(this, 14), 0, 0, 0);
+            col.addView(Ui.text(this, d.name, 12, 0xCCFFFFFF, true));
+            TextView sym = Ui.text(this, d.symbol, 18, 0xFFFFD45A, false);
+            sym.setPadding(0, Ui.dp(this, 3), 0, Ui.dp(this, 3));
+            col.addView(sym);
+            col.addView(Ui.text(this, d.high + "° / " + d.low + "°", 12, Color.WHITE, false));
+            forecast.addView(col);
+        }
+    }
+
+    // ---------------------------------------------------------------- screensaver
+
+    private void resetIdle() {
+        ui.removeCallbacks(idle);
+        int minutes = prefs.saverMinutes();
+        if (minutes > 0 && !saverOn) ui.postDelayed(idle, minutes * 60000L);
+    }
+
+    private void enterScreensaver() {
+        if (saverOn) return;
+        saverOn = true;
+        Hub.saverOn = true;
+        ui.removeCallbacks(idle);
+        dashboard.animate().alpha(0f).setDuration(800).start();
+        scrim.animate().alpha(0.35f).setDuration(800).start();
+        saverClockBox.setVisibility(View.VISIBLE);
+        saverClockBox.animate().alpha(1f).setDuration(800).start();
+    }
+
+    private void exitScreensaver() {
+        if (saverOn) {
+            saverOn = false;
+            Hub.saverOn = false;
+            dashboard.animate().alpha(1f).setDuration(300).start();
+            scrim.animate().alpha(1f).setDuration(300).start();
+            saverClockBox.animate().alpha(0f).setDuration(300).withEndAction(() -> {
+                if (!saverOn) saverClockBox.setVisibility(View.GONE);
+            }).start();
+        }
+        resetIdle();
+    }
+
+    // ---------------------------------------------------------------- phone remote
+
+    private void showPhoneRemote() {
+        TvServer server = TvServer.running;
+        String address = server == null ? null : server.address();
+        if (address == null) {
+            RemoteService.start(this);
+            new AlertDialog.Builder(this)
+                    .setTitle("Phone remote")
+                    .setMessage("The phone remote is still starting, or the TV isn't connected to Wi‑Fi. Try again in a few seconds.")
+                    .setPositiveButton("OK", null)
+                    .show();
+            return;
+        }
+        String pin = prefs.pin();
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.HORIZONTAL);
+        box.setGravity(Gravity.CENTER_VERTICAL);
+        int pad = Ui.dp(this, 24);
+        box.setPadding(pad, pad, pad, pad);
+
+        ImageView qr = new ImageView(this);
+        qr.setImageBitmap(qrBitmap(address + "/#pin=" + pin));
+        int qrSize = Ui.dp(this, 200);
+        box.addView(qr, new LinearLayout.LayoutParams(qrSize, qrSize));
+
+        LinearLayout text = new LinearLayout(this);
+        text.setOrientation(LinearLayout.VERTICAL);
+        text.setPadding(pad, 0, 0, 0);
+        text.addView(Ui.text(this, "Scan with your phone's camera", 20, Color.WHITE, true));
+        TextView or = Ui.text(this, "or open this in your phone's browser:", 15, 0xCCFFFFFF, false);
+        or.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 4));
+        text.addView(or);
+        text.addView(Ui.text(this, address.substring("http://".length()), 24, Ui.ACCENT, true));
+        TextView pinLabel = Ui.text(this, "PIN", 15, 0xCCFFFFFF, false);
+        pinLabel.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
+        text.addView(pinLabel);
+        TextView pinText = Ui.text(this, pin, 34, Color.WHITE, true);
+        pinText.setLetterSpacing(0.3f);
+        text.addView(pinText);
+        TextView tip = Ui.text(this, "Your phone must be on the same Wi‑Fi as the TV. "
+                + "Tip: use \"Add to Home Screen\" on your phone to keep it like an app.", 13, 0xB3FFFFFF, false);
+        tip.setPadding(0, Ui.dp(this, 14), 0, 0);
+        tip.setMaxWidth(Ui.dp(this, 320));
+        text.addView(tip);
+        box.addView(text);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Phone remote")
+                .setView(box)
+                .setPositiveButton("Done", null)
+                .setNeutralButton("New PIN", (d, w) -> {
+                    prefs.newPin();
+                    showPhoneRemote();
+                })
+                .show();
+    }
+
+    private static Bitmap qrBitmap(String text) {
+        QrCode qr = QrCode.encode(text);
+        int border = 2;
+        int dim = qr.size + border * 2;
+        int[] pixels = new int[dim * dim];
+        for (int y = 0; y < dim; y++) {
+            for (int x = 0; x < dim; x++) {
+                int qx = x - border, qy = y - border;
+                boolean dark = qx >= 0 && qy >= 0 && qx < qr.size && qy < qr.size && qr.get(qx, qy);
+                pixels[y * dim + x] = dark ? Color.BLACK : Color.WHITE;
+            }
+        }
+        Bitmap small = Bitmap.createBitmap(pixels, dim, dim, Bitmap.Config.ARGB_8888);
+        return Bitmap.createScaledBitmap(small, dim * 8, dim * 8, false);
+    }
+
+    @Override
+    public void remoteSettingsChanged() {
+        appsSection.setVisibility(prefs.showAllApps() ? View.VISIBLE : View.GONE);
+        updateClock();
+        slideshow.start(Photos.slideshowSources(this, prefs), prefs.slideSeconds());
+        refreshWeather(false);
+        resetIdle();
+    }
+
+    @Override
+    public void remoteFavoritesChanged() {
+        rebuildApps();
+    }
+
+    @Override
+    public void remoteMessage(String text, int seconds) {
+        if (saverOn) exitScreensaver();
+        ui.removeCallbacks(hideMessage);
+        messageBanner.setText(text);
+        messageBanner.setVisibility(View.VISIBLE);
+        messageBanner.setAlpha(0f);
+        messageBanner.animate().alpha(1f).setDuration(300).start();
+        ui.postDelayed(hideMessage, seconds * 1000L);
+    }
+
+    @Override
+    public void remoteScreensaver(boolean on) {
+        if (on) enterScreensaver();
+        else exitScreensaver();
+    }
+
+    @Override
+    public void remoteNextPhoto() {
+        slideshow.skip();
+    }
+
+    @Override
+    public void remotePhotosChanged(File newest) {
+        slideshow.start(Photos.slideshowSources(this, prefs), prefs.slideSeconds());
+        if (newest != null) slideshow.showNow("file://" + newest.getAbsolutePath());
+        else slideshow.skip();
+    }
+}

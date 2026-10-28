@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#FF14213D" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#FF1F3A68" android:pathData="M0,120 C80,90 200,160 320,110 L320,180 L0,180z" />
+    <!-- dashboard tiles -->
+    <path android:fillColor="#FF5AC8FA" android:pathData="M40,40h110a8,8 0,0 1,8 8v40a8,8 0,0 1,-8 8h-110a8,8 0,0 1,-8 -8v-40a8,8 0,0 1,8 -8z" />
+    <path android:fillColor="#FFFFC857" android:pathData="M176,40h96a8,8 0,0 1,8 8v40a8,8 0,0 1,-8 8h-96a8,8 0,0 1,-8 -8v-40a8,8 0,0 1,8 -8z" />
+    <path android:fillColor="#99FFFFFF" android:pathData="M40,112h52a6,6 0,0 1,6 6v20a6,6 0,0 1,-6 6h-52a6,6 0,0 1,-6 -6v-20a6,6 0,0 1,6 -6z M120,112h52a6,6 0,0 1,6 6v20a6,6 0,0 1,-6 6h-52a6,6 0,0 1,-6 -6v-20a6,6 0,0 1,6 -6z M200,112h74a6,6 0,0 1,6 6v20a6,6 0,0 1,-6 6h-74a6,6 0,0 1,-6 -6v-20a6,6 0,0 1,6 -6z" />
+    <!-- sun on the weather tile -->
+    <path android:fillColor="#FF14213D" android:pathData="M224,68m-14,0a14,14 0,1 1,28 0a14,14 0,1 1,-28 0" />
+</vector>

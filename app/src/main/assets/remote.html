@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B1426">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TV Dash">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/app-icon.png">
+<title>TV Dash Remote</title>
+<style>
+  :root {
+    --bg: #0B1426; --card: #16213d; --card2: #1d2a4d; --line: #2a3a66;
+    --text: #f2f5ff; --muted: #a9b4d6; --accent: #5ac8fa; --warm: #ffd45a; --bad: #ff6b6b; --good: #4ade80;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 24px); max-width: 640px; margin: 0 auto; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 8px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: .2px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--accent); margin: 26px 0 10px; }
+  .pill { font-size: 13px; padding: 5px 10px; border-radius: 999px; background: var(--card); color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
+  .pill.on .dot { background: var(--good); }
+  .now { background: linear-gradient(135deg, #1f3a68, #3a1f4f); border-radius: 18px; padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .now .time { font-size: 34px; font-weight: 300; white-space: nowrap; }
+  .now .wx { text-align: right; color: var(--muted); font-size: 14px; }
+  .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  button, .btn { appearance: none; border: 0; border-radius: 14px; background: var(--card); color: var(--text); font: inherit; padding: 14px 10px; cursor: pointer; }
+  button:active { transform: scale(.97); background: var(--card2); }
+  button:disabled { opacity: .35; }
+  button.primary { background: var(--accent); color: #062033; font-weight: 600; }
+  button.ghost { background: transparent; border: 1px solid var(--line); }
+  .actions button { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; }
+  .actions button span { font-size: 22px; }
+  input, textarea, select { width: 100%; font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  textarea { resize: vertical; min-height: 70px; }
+  .search { margin-bottom: 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
+  .app { position: relative; background: var(--card); border-radius: 14px; padding: 10px 6px 8px; text-align: center; font-size: 12px; color: var(--muted); }
+  .app img { width: 44px; height: 44px; display: block; margin: 0 auto 6px; border-radius: 10px; }
+  .app .name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .app .star { position: absolute; top: 2px; right: 2px; background: none; padding: 6px; font-size: 16px; color: #56628a; }
+  .app .star.on { color: var(--warm); }
+  .favs { display: flex; flex-direction: column; gap: 8px; }
+  .fav { display: flex; align-items: center; gap: 10px; background: var(--card); border-radius: 12px; padding: 8px 10px; }
+  .fav img { width: 32px; height: 32px; border-radius: 8px; }
+  .fav .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fav button { padding: 8px 12px; border-radius: 10px; background: var(--card2); }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row > * { flex: 1; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .seg { display: flex; background: var(--card); border-radius: 12px; padding: 4px; gap: 4px; }
+  .seg button { flex: 1; padding: 10px; background: transparent; border-radius: 9px; }
+  .seg button.on { background: var(--accent); color: #062033; font-weight: 600; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .note { background: #2b2440; color: #e8dcff; border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-top: 10px; }
+  .hidden { display: none !important; }
+  .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 20px); transform: translateX(-50%); background: #f2f5ff; color: #0B1426; padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; }
+  .toast.show { opacity: 1; }
+  .gate { text-align: center; padding-top: 12vh; }
+  .gate input { text-align: center; font-size: 32px; letter-spacing: 12px; max-width: 220px; margin: 18px auto; display: block; }
+  progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<section id="gate" class="gate hidden">
+  <h1>TV Dash Remote</h1>
+  <p class="muted">Enter the 4-digit PIN shown on your TV<br>(System row → Phone remote).</p>
+  <input id="pinInput" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="••••">
+  <button class="primary" id="pinGo">Connect</button>
+  <p id="gateError" class="muted" style="color: var(--bad)"></p>
+</section>
+
+<main id="app" class="hidden">
+  <header>
+    <h1>TV Dash</h1>
+    <span id="conn" class="pill"><span class="dot"></span><span id="connText">Connecting…</span></span>
+  </header>
+
+  <div class="now">
+    <div class="time" id="tvTime">--:--</div>
+    <div class="wx" id="tvWeather"></div>
+  </div>
+  <div id="offScreen" class="note hidden">TV Dash isn't on the TV screen right now. Opening apps may not work until you press Home on the TV and open TV Dash.</div>
+
+  <div class="actions">
+    <button data-act="home"><span>⌂</span>TV Dash</button>
+    <button data-act="saver"><span id="saverIcon">◐</span><span id="saverText" style="font-size:13px">Screensaver</span></button>
+    <button data-act="next"><span>↻</span>New photo</button>
+  </div>
+
+  <h2>Favorites</h2>
+  <div id="favs" class="favs"></div>
+  <p id="favsEmpty" class="muted hidden">Tap ☆ on any app below to pin it to the TV's Favorites row.</p>
+
+  <h2>Open an app on the TV</h2>
+  <input id="search" class="search" type="search" placeholder="Search apps">
+  <div id="apps" class="grid"></div>
+
+  <h2>Send photos to the TV</h2>
+  <p class="muted">They show up on the TV right away and join the background slideshow. <span id="photoCount"></span></p>
+  <div class="row">
+    <label class="btn" style="text-align:center; background: var(--accent); color:#062033; font-weight:600">
+      Choose photos<input id="photoInput" type="file" accept="image/*" multiple hidden>
+    </label>
+    <button class="ghost" id="clearPhotos">Remove all</button>
+  </div>
+  <progress id="photoProgress" class="hidden" max="1" value="0"></progress>
+
+  <h2>Message on the TV</h2>
+  <textarea id="msg" maxlength="280" placeholder="Dinner's ready 🍕"></textarea>
+  <div class="row" style="margin-top:10px">
+    <select id="msgSecs">
+      <option value="10">Show 10 seconds</option>
+      <option value="30" selected>Show 30 seconds</option>
+      <option value="60">Show 1 minute</option>
+      <option value="300">Show 5 minutes</option>
+    </select>
+    <button class="primary" id="sendMsg">Send</button>
+  </div>
+
+  <h2>Dashboard settings</h2>
+  <div class="field">
+    <label for="city">Weather city (blank = find automatically)</label>
+    <div class="row"><input id="city" placeholder="e.g. Dallas"><button id="saveCity" style="flex:0 0 auto">Save</button></div>
+  </div>
+  <div class="field"><label>Temperature</label>
+    <div class="seg" data-setting="fahrenheit"><button data-v="true">°F</button><button data-v="false">°C</button></div></div>
+  <div class="field"><label>Clock</label>
+    <div class="seg" data-setting="clock24"><button data-v="false">12-hour</button><button data-v="true">24-hour</button></div></div>
+  <div class="field"><label>Change photo every</label>
+    <div class="seg" data-setting="slideSeconds"><button data-v="15">15s</button><button data-v="30">30s</button><button data-v="60">1m</button><button data-v="300">5m</button></div></div>
+  <div class="field"><label>Screensaver after</label>
+    <div class="seg" data-setting="saverMinutes"><button data-v="0">Off</button><button data-v="2">2m</button><button data-v="5">5m</button><button data-v="10">10m</button><button data-v="30">30m</button></div></div>
+  <div class="field"><label>"All apps" section on TV</label>
+    <div class="seg" data-setting="showAllApps"><button data-v="true">Show</button><button data-v="false">Hide</button></div></div>
+
+  <p class="muted" style="margin-top:28px">Tip: use <b>Share → Add to Home Screen</b> to keep this like an app. Your phone must be on the same Wi‑Fi as the TV.
+    <a href="#" id="forget" style="color: var(--muted)">Forget PIN</a></p>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  let pin = null;
+  let state = null;
+  let filter = '';
+  let pollTimer = null;
+  let lastAppsKey = '';
+
+  // PIN arrives in the QR link (#pin=1234) or is typed once, then remembered.
+  try { pin = localStorage.getItem('tvdash-pin'); } catch (e) {}
+  const m = location.hash.match(/pin=(\d{4})/);
+  if (m) {
+    pin = m[1];
+    try { localStorage.setItem('tvdash-pin', pin); } catch (e) {}
+    history.replaceState(null, '', location.pathname);
+  }
+
+  function toast(text) {
+    const t = $('toast');
+    t.textContent = text;
+    t.classList.add('show');
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  async function api(path, body, raw) {
+    const opts = { method: body === undefined ? 'GET' : 'POST', headers: { 'X-Pin': pin || '' } };
+    if (body !== undefined) {
+      if (raw) { opts.body = body; opts.headers['Content-Type'] = 'image/jpeg'; }
+      else { opts.body = JSON.stringify(body); opts.headers['Content-Type'] = 'application/json'; }
+    }
+    const res = await fetch(path, opts);
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { showGate('That PIN didn\'t match. Check the TV.'); throw new Error('pin'); }
+    if (!res.ok) throw new Error(data.error || ('Error ' + res.status));
+    return data;
+  }
+
+  function showGate(error) {
+    $('app').classList.add('hidden');
+    $('gate').classList.remove('hidden');
+    $('gateError').textContent = error || '';
+    clearInterval(pollTimer);
+    setTimeout(() => $('pinInput').focus(), 50);
+  }
+
+  function showApp() {
+    $('gate').classList.add('hidden');
+    $('app').classList.remove('hidden');
+  }
+
+  async function connect(newPin) {
+    if (newPin) pin = newPin;
+    try {
+      await refresh();
+      try { localStorage.setItem('tvdash-pin', pin); } catch (e) {}
+      showApp();
+      clearInterval(pollTimer);
+      pollTimer = setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 3000);
+    } catch (e) {
+      if (e.message !== 'pin') showGate(e.message.includes('fetch') ? 'Can\'t reach the TV. Is your phone on the same Wi‑Fi?' : e.message);
+    }
+  }
+
+  async function refresh() {
+    try {
+      state = await api('/api/state');
+      setConn(true);
+      render();
+    } catch (e) {
+      setConn(false);
+      throw e;
+    }
+  }
+
+  function setConn(ok) {
+    $('conn').classList.toggle('on', ok);
+    $('connText').textContent = ok ? 'Connected' : 'Offline';
+  }
+
+  const icon = (pkg) => '/api/icon?pin=' + encodeURIComponent(pin) + '&pkg=' + encodeURIComponent(pkg);
+  const labelOf = (pkg) => (state.apps.find(a => a.pkg === pkg) || { label: pkg }).label;
+
+  function render() {
+    $('tvTime').textContent = state.time;
+    $('tvWeather').textContent = state.weather || '';
+    $('offScreen').classList.toggle('hidden', state.onScreen);
+    $('saverText').textContent = state.saverOn ? 'Wake TV Dash' : 'Screensaver';
+    $('photoCount').textContent = state.photos ? state.photos + ' sent so far.' : '';
+
+    // Favorites list with reorder buttons.
+    const favs = state.favorites.filter(p => state.apps.some(a => a.pkg === p));
+    $('favsEmpty').classList.toggle('hidden', favs.length > 0);
+    const favBox = $('favs');
+    const favKey = favs.join('|');
+    if (favBox.dataset.key !== favKey) {
+      favBox.dataset.key = favKey;
+      favBox.innerHTML = '';
+      favs.forEach((pkg, i) => {
+        const row = document.createElement('div');
+        row.className = 'fav';
+        row.innerHTML = `<img alt="" loading="lazy"><span class="name"></span>
+          <button data-move="-1" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button data-move="1" ${i === favs.length - 1 ? 'disabled' : ''}>↓</button>
+          <button data-open>Open</button>`;
+        row.querySelector('img').src = icon(pkg);
+        row.querySelector('.name').textContent = labelOf(pkg);
+        row.querySelectorAll('[data-move]').forEach(b => b.onclick = () => moveFav(pkg, +b.dataset.move));
+        row.querySelector('[data-open]').onclick = () => launch(pkg);
+        favBox.appendChild(row);
+      });
+    }
+
+    // App grid (rebuilt only when the list, favorites or search change).
+    const appsKey = state.apps.map(a => a.pkg).join('|') + '#' + favKey + '#' + filter;
+    if (appsKey !== lastAppsKey) {
+      lastAppsKey = appsKey;
+      const grid = $('apps');
+      grid.innerHTML = '';
+      state.apps.filter(a => a.label.toLowerCase().includes(filter)).forEach(a => {
+        const fav = state.favorites.includes(a.pkg);
+        const el = document.createElement('div');
+        el.className = 'app';
+        el.innerHTML = `<img alt="" loading="lazy"><span class="name"></span><button class="star ${fav ? 'on' : ''}" aria-label="Favorite">${fav ? '★' : '☆'}</button>`;
+        el.querySelector('img').src = icon(a.pkg);
+        el.querySelector('.name').textContent = a.label;
+        el.onclick = () => launch(a.pkg);
+        el.querySelector('.star').onclick = (ev) => { ev.stopPropagation(); toggleFav(a.pkg); };
+        grid.appendChild(el);
+      });
+    }
+
+    // Settings controls reflect what the TV has.
+    $('city').placeholder = 'e.g. Dallas';
+    if (document.activeElement !== $('city')) $('city').value = state.settings.city;
+    document.querySelectorAll('.seg').forEach(seg => {
+      const cur = String(state.settings[seg.dataset.setting]);
+      seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === cur));
+    });
+  }
+
+  async function launch(pkg) {
+    try { await api('/api/launch', { pkg }); toast('Opening ' + labelOf(pkg) + ' on the TV'); }
+    catch (e) { if (e.message !== 'pin') toast(e.message); }
+  }
+
+  async function saveFavs(list) {
+    await api('/api/favorites', { pkgs: list });
+    await refresh();
+  }
+
+  function toggleFav(pkg) {
+    const list = state.favorites.slice();
+    const i = list.indexOf(pkg);
+    if (i >= 0) list.splice(i, 1); else list.push(pkg);
+    saveFavs(list).then(() => toast(i >= 0 ? 'Removed from Favorites' : 'Added to Favorites')).catch(e => toast(e.message));
+  }
+
+  function moveFav(pkg, dir) {
+    const list = state.favorites.filter(p => state.apps.some(a => a.pkg === p));
+    const i = list.indexOf(pkg), j = i + dir;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    saveFavs(list).catch(e => toast(e.message));
+  }
+
+  async function saveSetting(key, value) {
+    try { await api('/api/settings', { [key]: value }); await refresh(); toast('Updated on the TV'); }
+    catch (e) { if (e.message !== 'pin') toast(e.message); }
+  }
+
+  // Shrink photos on the phone before sending so they upload fast.
+  function toJpeg(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 1920 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale);
+        c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(b => b ? resolve(b) : reject(new Error('Couldn\'t read that photo')), 'image/jpeg', 0.86);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Couldn\'t read that photo')); };
+      img.src = url;
+    });
+  }
+
+  $('photoInput').onchange = async (ev) => {
+    const files = Array.from(ev.target.files || []);
+    ev.target.value = '';
+    if (!files.length) return;
+    const bar = $('photoProgress');
+    bar.classList.remove('hidden');
+    bar.max = files.length;
+    bar.value = 0;
+    let sent = 0;
+    for (const f of files) {
+      try { await api('/api/photo', await toJpeg(f), true); sent++; }
+      catch (e) { if (e.message === 'pin') return; toast(e.message); }
+      bar.value++;
+    }
+    bar.classList.add('hidden');
+    toast(sent === 1 ? 'Photo is on the TV' : sent + ' photos sent to the TV');
+    refresh().catch(() => {});
+  };
+
+  $('clearPhotos').onclick = async () => {
+    if (!confirm('Remove all photos you sent to the TV?')) return;
+    try { await api('/api/photos/clear', {}); toast('Photos removed'); refresh(); } catch (e) { toast(e.message); }
+  };
+
+  $('sendMsg').onclick = async () => {
+    const text = $('msg').value.trim();
+    if (!text) { toast('Type a message first'); return; }
+    try { await api('/api/message', { text, seconds: +$('msgSecs').value }); $('msg').value = ''; toast('Message is on the TV'); }
+    catch (e) { if (e.message !== 'pin') toast(e.message); }
+  };
+
+  document.querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
+    try {
+      const act = b.dataset.act;
+      if (act === 'home') { await api('/api/home', {}); toast('Opening TV Dash'); }
+      if (act === 'saver') { await api('/api/screensaver', { on: !(state && state.saverOn) }); refresh(); }
+      if (act === 'next') { await api('/api/photo/next', {}); toast('Next photo'); }
+    } catch (e) { if (e.message !== 'pin') toast(e.message); }
+  });
+
+  document.querySelectorAll('.seg').forEach(seg => seg.querySelectorAll('button').forEach(b => b.onclick = () => {
+    const raw = b.dataset.v;
+    saveSetting(seg.dataset.setting, raw === 'true' ? true : raw === 'false' ? false : +raw);
+  }));
+  $('saveCity').onclick = () => saveSetting('city', $('city').value.trim());
+  $('city').onkeydown = (e) => { if (e.key === 'Enter') $('saveCity').click(); };
+  $('search').oninput = (e) => { filter = e.target.value.trim().toLowerCase(); if (state) render(); };
+  $('pinGo').onclick = () => connect($('pinInput').value.trim());
+  $('pinInput').onkeydown = (e) => { if (e.key === 'Enter') $('pinGo').click(); };
+  $('pinInput').oninput = (e) => { if (e.target.value.length === 4) $('pinGo').click(); };
+  $('forget').onclick = (e) => { e.preventDefault(); try { localStorage.removeItem('tvdash-pin'); } catch (x) {} pin = null; showGate(); };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && pin) refresh().catch(() => {}); });
+
+  if (pin) connect(); else showGate();
+})();
+</script>
+</body>
+</html>
