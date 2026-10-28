@@ -72,7 +72,7 @@ Under the prices, TV Dash rotates recent headlines for those same symbols. Stock
 
 Open **Work** on the system row, or tap **Work** on the phone. Back, or the Dashboard button, returns to the normal home screen.
 
-Work Mode has three screens: a filterable list, a US map, and reports. The remote moves through the list and between map dots. Select on a dot zooms to that state. Hot jobs pulse coral. Overdue jobs are the ones past their SLA date.
+Work Mode opens on the map. Open, hot, overdue, and on-time counts sit above it. Dots are colored by trade: landscaping green, HVAC red, plumbing blue, and a different color for each other trade. The legend is on the right. A coral ring means the job is hot. Select on a dot zooms to that state. List and Reports are the other two tabs. The home screen stays black and green. Work Mode uses Vigo navy.
 
 The list is demo data until you save a Vigo key. On the TV, open **Dashboard settings → Vigo key**. On the phone, use **More → Vigo work**. The key is stored only on the TV, masked after you save it, and is not included in the phone's status payload. With a key, TV Dash calls `https://vigo.fm/api/tv/work-orders` about every two minutes. A rejected key shows **Invalid key** and does not fall back to the demo list.
 

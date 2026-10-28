@@ -43,6 +43,8 @@ public class WorkActivity extends Activity {
     private TextView tabReports;
     private TextView zoomButton;
     private TextView mapCaption;
+    private LinearLayout mapStats;
+    private LinearLayout legend;
     private LinearLayout filters;
     private LinearLayout list;
     private LinearLayout detailLines;
@@ -106,7 +108,7 @@ public class WorkActivity extends Activity {
         ui.removeCallbacks(poll);
         load(false);
         ui.postDelayed(poll, POLL_MS);
-        if (page == 1 && map != null) map.startAmbient();
+        if (page == 0 && map != null) map.startAmbient();
     }
 
     @Override
@@ -168,11 +170,11 @@ public class WorkActivity extends Activity {
         word.setPadding(Ui.dp(this, 10), 0, Ui.dp(this, 18), 0);
         row.addView(word);
 
-        tabList = tab("List", 0);
-        tabMap = tab("Map", 1);
+        tabMap = tab("Map", 0);
+        tabList = tab("List", 1);
         tabReports = tab("Reports", 2);
-        row.addView(tabList);
         row.addView(tabMap);
+        row.addView(tabList);
         row.addView(tabReports);
 
         View spacer = new View(this);
@@ -221,19 +223,19 @@ public class WorkActivity extends Activity {
 
     private void showPage(int index) {
         page = index;
-        styleTab(tabList, index == 0);
-        styleTab(tabMap, index == 1);
+        styleTab(tabMap, index == 0);
+        styleTab(tabList, index == 1);
         styleTab(tabReports, index == 2);
         boolean charts = index == 2;
         body.setVisibility(charts ? View.GONE : View.VISIBLE);
         reports.setVisibility(charts ? View.VISIBLE : View.GONE);
         if (!charts) {
-            listPage.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
-            mapPage.setVisibility(index == 1 ? View.VISIBLE : View.GONE);
+            mapPage.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
+            listPage.setVisibility(index == 1 ? View.VISIBLE : View.GONE);
         }
-        if (index == 1 && resumed && map != null) map.startAmbient();
+        if (index == 0 && resumed && map != null) map.startAmbient();
         else if (map != null) map.stopAmbient();
-        if (index == 1 && map != null) map.requestFocus();
+        if (index == 0 && map != null) map.requestFocus();
         else if (index == 2) reports.requestFocus();
     }
 
@@ -252,7 +254,7 @@ public class WorkActivity extends Activity {
         FrameLayout left = new FrameLayout(this);
         listPage = listPage();
         mapPage = mapPage();
-        mapPage.setVisibility(View.GONE);
+        listPage.setVisibility(View.GONE);
         left.addView(listPage, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         left.addView(mapPage, new FrameLayout.LayoutParams(
@@ -300,11 +302,15 @@ public class WorkActivity extends Activity {
         mapCaption = Vigo.text(this, "United States", 14, Vigo.MUTED, false);
         mapCaption.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), 0);
         tools.addView(mapCaption);
-        tools.addView(legendDot("High", Vigo.CORAL));
-        tools.addView(legendDot("Medium", Vigo.GOLD));
-        tools.addView(legendDot("Low", Vigo.GREEN));
-        tools.addView(legendDot("Hot", Vigo.CORAL));
         col.addView(tools);
+
+        mapStats = new LinearLayout(this);
+        mapStats.setOrientation(LinearLayout.HORIZONTAL);
+        mapStats.setPadding(0, 0, 0, Ui.dp(this, 8));
+        col.addView(mapStats);
+
+        LinearLayout stage = new LinearLayout(this);
+        stage.setOrientation(LinearLayout.HORIZONTAL);
         map = new WorkMapView(this);
         map.setListener(new WorkMapView.Select() {
             @Override public void onJob(WorkOrder job) { showDetail(job); }
@@ -313,26 +319,20 @@ public class WorkActivity extends Activity {
                 if (job != null) setZoom(job.state);
             }
         });
-        col.addView(map, new LinearLayout.LayoutParams(
+        stage.addView(map, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+
+        ScrollView legendScroll = new ScrollView(this);
+        legendScroll.setFocusable(false);
+        legend = new LinearLayout(this);
+        legend.setOrientation(LinearLayout.VERTICAL);
+        legend.setPadding(Ui.dp(this, 12), 0, 0, 0);
+        legendScroll.addView(legend);
+        LinearLayout.LayoutParams legendLp = new LinearLayout.LayoutParams(
+                Ui.dp(this, 196), ViewGroup.LayoutParams.MATCH_PARENT);
+        stage.addView(legendScroll, legendLp);
+        col.addView(stage, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         return col;
-    }
-
-    private View legendDot(String name, int color) {
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(Ui.dp(this, 8), 0, 0, 0);
-        View swatch = new View(this);
-        GradientDrawable d = new GradientDrawable();
-        d.setCornerRadius(Ui.dp(this, 5));
-        d.setColor(color);
-        swatch.setBackground(d);
-        int s = Ui.dp(this, 10);
-        row.addView(swatch, new LinearLayout.LayoutParams(s, s));
-        TextView label = Vigo.text(this, name, 12, Vigo.MUTED, false);
-        label.setPadding(Ui.dp(this, 4), 0, 0, 0);
-        row.addView(label);
-        return row;
     }
 
     private LinearLayout.LayoutParams detailLp() {
@@ -552,10 +552,11 @@ public class WorkActivity extends Activity {
         TextView status = Vigo.pill(this, order.statusName.length() == 0 ? "—" : order.statusName, order.statusBg, order.statusFg);
         row.addView(status, cell(ViewGroup.LayoutParams.WRAP_CONTENT));
         row.addView(ellipsize(order.phase, 14, Vigo.TEXT), cell(Ui.dp(this, 120)));
-        row.addView(ellipsize(order.priority, 14, order.dotColor()), cell(Ui.dp(this, 90)));
+        int priorityTint = WorkOrder.priorityColor(order.priority);
+        row.addView(ellipsize(order.priority, 14, priorityTint == 0 ? Vigo.TEXT : priorityTint), cell(Ui.dp(this, 90)));
         String place = order.store.length() == 0 ? order.place() : order.store + "  " + order.place();
         row.addView(ellipsize(place, 14, Vigo.TEXT), cell(0));
-        row.addView(ellipsize(order.trade, 14, Vigo.MUTED), cell(Ui.dp(this, 110)));
+        row.addView(ellipsize(order.trade, 14, WorkOrder.tradeColor(order.trade)), cell(Ui.dp(this, 110)));
         TextView sla = Vigo.text(this, WorkOrder.pretty(order.slaCompletionDate), 14,
                 order.overdue() ? Vigo.RED : Vigo.TEXT, false);
         row.addView(sla, cell(Ui.dp(this, 72)));
@@ -667,6 +668,7 @@ public class WorkActivity extends Activity {
     private void refreshMap() {
         if (map == null) return;
         List<WorkOrder> rows = filtered();
+        fillMapStats(rows);
         if (zoom != null) {
             List<WorkOrder> inState = new ArrayList<WorkOrder>();
             for (int i = 0; i < rows.size(); i++) {
@@ -674,8 +676,80 @@ public class WorkActivity extends Activity {
             }
             rows = inState;
         }
+        fillLegend(rows);
         map.setZoom(zoom);
         map.setJobs(rows, selectedWo);
+    }
+
+    private void fillMapStats(List<WorkOrder> rows) {
+        if (mapStats == null) return;
+        mapStats.removeAllViews();
+        int hot = 0;
+        int overdue = 0;
+        for (int i = 0; i < rows.size(); i++) {
+            if (rows.get(i).hotJob) hot++;
+            if (rows.get(i).overdue()) overdue++;
+        }
+        mapStats.addView(mapStat("Open", rows.size(), Vigo.TEXT), kpiLp());
+        mapStats.addView(mapStat("Hot", hot, Vigo.CORAL), kpiLp());
+        mapStats.addView(mapStat("Overdue", overdue, Vigo.RED), kpiLp());
+        mapStats.addView(mapStat("On time", rows.size() - overdue, Vigo.GREEN), kpiLp());
+    }
+
+    private View mapStat(String label, int value, int color) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setBackground(Vigo.panel(this));
+        int p = Ui.dp(this, 10);
+        box.setPadding(p, p, p, p);
+        box.addView(Vigo.text(this, label.toUpperCase(), 11, Vigo.MUTED, true));
+        TextView num = Vigo.text(this, String.valueOf(value), 28, color, true);
+        num.setPadding(0, Ui.dp(this, 2), 0, 0);
+        box.addView(num);
+        return box;
+    }
+
+    private void fillLegend(List<WorkOrder> rows) {
+        if (legend == null) return;
+        legend.removeAllViews();
+        TextView title = Vigo.text(this, "TRADE", 12, Vigo.AQUA, true);
+        title.setPadding(0, 0, 0, Ui.dp(this, 8));
+        legend.addView(title);
+        List<String> names = new ArrayList<String>();
+        for (int i = 0; i < rows.size(); i++) {
+            String name = rows.get(i).trade;
+            if (name.length() == 0 || names.contains(name)) continue;
+            names.add(name);
+        }
+        Collections.sort(names, new Comparator<String>() {
+            @Override public int compare(String a, String b) {
+                int rank = WorkOrder.tradeRank(a) - WorkOrder.tradeRank(b);
+                return rank != 0 ? rank : a.compareToIgnoreCase(b);
+            }
+        });
+        for (int i = 0; i < names.size(); i++) legend.addView(legendRow(names.get(i), WorkOrder.tradeColor(names.get(i))));
+        TextView hot = Vigo.text(this, "Ring   hot", 13, Vigo.CORAL, false);
+        hot.setPadding(0, Ui.dp(this, 10), 0, 0);
+        legend.addView(hot);
+    }
+
+    private View legendRow(String name, int color) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));
+        View swatch = new View(this);
+        GradientDrawable d = new GradientDrawable();
+        d.setCornerRadius(Ui.dp(this, 4));
+        d.setColor(color);
+        swatch.setBackground(d);
+        int s = Ui.dp(this, 12);
+        row.addView(swatch, new LinearLayout.LayoutParams(s, s));
+        TextView label = Vigo.text(this, name, 14, Vigo.TEXT, false);
+        label.setPadding(Ui.dp(this, 8), 0, 0, 0);
+        label.setSingleLine(true);
+        label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        return row;
     }
 
     private WorkOrder findSelected() {

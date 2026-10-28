@@ -77,11 +77,49 @@ final class WorkOrder {
         return beforeToday(slaCompletionDate);
     }
 
+    /** Map dots follow the trade. Hot jobs are marked separately with a coral ring. */
     int dotColor() {
-        int fromPriority = priorityColor(priority);
-        if (fromPriority != 0) return fromPriority;
-        if (hasStatusColor) return statusBg;
-        return Vigo.TEAL;
+        return tradeColor(trade);
+    }
+
+    static int tradeColor(String trade) {
+        String t = trade == null ? "" : trade.toLowerCase(Locale.US);
+        if (t.contains("landscap")) return 0xFF1F9D6A;
+        if (t.contains("hvac")) return 0xFFD64545;
+        if (t.contains("plumb")) return 0xFF3B82F6;
+        if (t.contains("electric")) return 0xFFF2B84B;
+        if (t.contains("roof")) return 0xFFF97316;
+        if (t.contains("door") || t.contains("lock")) return 0xFFA855F7;
+        if (t.contains("pest")) return 0xFF14B8A6;
+        if (t.contains("refriger")) return 0xFF43C7D8;
+        if (t.contains("janitor")) return 0xFFEC4899;
+        if (t.contains("paint")) return 0xFFEAB308;
+        if (t.contains("floor")) return 0xFF8B5CF6;
+        if (t.contains("glass")) return 0xFF7BE0DC;
+        if (t.contains("appliance")) return 0xFFFB7185;
+        if (t.contains("general") || t.contains("maint")) return 0xFF94A3B8;
+        if (t.length() == 0) return Vigo.MUTED;
+        int[] extra = {0xFF84CC16, 0xFF6366F1, 0xFFD946EF, 0xFF0EA5E9, 0xFFF59E0B, 0xFF22D3EE};
+        return extra[Math.abs(t.hashCode()) % extra.length];
+    }
+
+    static int tradeRank(String trade) {
+        String t = trade == null ? "" : trade.toLowerCase(Locale.US);
+        if (t.contains("landscap")) return 0;
+        if (t.contains("hvac")) return 1;
+        if (t.contains("plumb")) return 2;
+        if (t.contains("electric")) return 3;
+        if (t.contains("roof")) return 4;
+        if (t.contains("door") || t.contains("lock")) return 5;
+        if (t.contains("pest")) return 6;
+        if (t.contains("refriger")) return 7;
+        if (t.contains("janitor")) return 8;
+        if (t.contains("paint")) return 9;
+        if (t.contains("floor")) return 10;
+        if (t.contains("glass")) return 11;
+        if (t.contains("appliance")) return 12;
+        if (t.contains("general") || t.contains("maint")) return 13;
+        return 50;
     }
 
     static int priorityColor(String priority) {
