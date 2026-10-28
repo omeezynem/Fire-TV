@@ -38,6 +38,9 @@ final class Prefs {
         sp.edit().remove("favorites").apply();
     }
 
+    /** Optional key for a future work feed. Empty means the map stays on the built-in sample. Never shown. */
+    String workBearer() { return sp.getString("workBearer", ""); }
+
     String city() { return sp.getString("city", ""); }
     void setCity(String v) { sp.edit().putString("city", v.trim()).apply(); }
 

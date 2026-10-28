@@ -54,6 +54,11 @@
             android:exported="false"
             android:screenOrientation="landscape" />
 
+        <activity
+            android:name=".WorkActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
         <service
             android:name=".RemoteService"
             android:exported="false" />

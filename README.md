@@ -8,7 +8,8 @@ TV Dash is a custom dashboard app for Amazon Fire TV (and any Android TV). It ru
 - **Market ticker**: a strip of stock, ETF, and crypto prices. Each symbol shows its name, the latest price, and a green ▲ or red ▼ with today's percent change. It does not show quantities, balances, or holdings. The list starts empty, so the strip stays hidden until you add symbols. The same prices show on the screensaver.
 - **Favorites row**: your streaming apps as large tiles using each app's own TV artwork. On first launch it pins whichever of Netflix, Prime Video, YouTube, Disney+, Hulu, Max, Peacock, Paramount+, Pluto, Plex and Spotify are installed.
 - **All apps** grid with every app on the TV, sorted A–Z. It updates on its own when you install or remove an app.
-- **System row**: one-click Fire TV Settings, Network, Manage apps, Dashboard settings, Screensaver, and New photo.
+- **System row**: one-click Fire TV Settings, Network, Manage apps, Dashboard settings, Work, Screensaver, and New photo.
+- **Work**: a view-only map of sample open jobs. Dots are colored by trade. A coral ring marks a hot job. The remote moves between dots and shows a small card (trade, city, state, phase). It does not dispatch, edit, or show money, street addresses, or anyone's name or phone.
 - **Status line**: whether you're online, plus free storage and free memory.
 - **Photo slideshow background** that cross-fades every 15 s, 30 s, 1 min or 5 min. It shows random scenic photos, or your own photo links.
 - **Screensaver**: after a few minutes without the remote, the dashboard fades away and leaves the photos, a clock, and the weather. Any button brings it back.

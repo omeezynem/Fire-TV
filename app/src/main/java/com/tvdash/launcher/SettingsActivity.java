@@ -40,8 +40,7 @@ public class SettingsActivity extends Activity {
         list.setPadding(side, Ui.dp(this, 40), side, Ui.dp(this, 56));
         scroll.addView(list);
 
-        TextView title = Ui.text(this, "Settings", 36, Color.WHITE, false);
-        title.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
+        TextView title = Ui.text(this, "SETTINGS", 28, Color.WHITE, false);
         title.setPadding(Ui.dp(this, 4), 0, 0, Ui.dp(this, 8));
         list.addView(title);
 
@@ -177,13 +176,13 @@ public class SettingsActivity extends Activity {
     }
 
     private void section(LinearLayout list, String name) {
-        TextView t = Ui.text(this, name, 13, Ui.TEXT_3, false);
+        TextView t = Ui.text(this, name.toUpperCase(), 12, Ui.ACCENT, false);
         t.setPadding(Ui.dp(this, 18), Ui.dp(this, 22), 0, Ui.dp(this, 8));
         list.addView(t);
     }
 
     private void row(LinearLayout list, String label, final Value value, final Runnable onClick) {
-        float radius = Ui.dp(this, 16);
+        float radius = Ui.corner(this);
         android.widget.FrameLayout shell = new android.widget.FrameLayout(this);
         shell.setFocusable(true);
         shell.setClickable(onClick != null);

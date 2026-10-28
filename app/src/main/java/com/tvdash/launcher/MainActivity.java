@@ -52,8 +52,8 @@ import java.util.concurrent.Executors;
 public class MainActivity extends Activity implements Hub.Screen {
     private static final long WEATHER_REFRESH_MS = 20 * 60 * 1000;
     private static final long MARKET_REFRESH_MS = 90 * 1000;
-    private static final int UP_COLOR = 0xFF30D158;
-    private static final int DOWN_COLOR = 0xFFFF453A;
+    private static final int UP_COLOR = 0xFF00FF88;
+    private static final int DOWN_COLOR = 0xFFFF4444;
     private static final int FLAT_COLOR = 0x73EBEBF5;
     private static final int FAV_VISIBLE = 5;
     private static final int GRID_COLUMNS = 6;
@@ -238,8 +238,22 @@ public class MainActivity extends Activity implements Hub.Screen {
 
         scrim = new View(this);
         scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0x66000000, 0x22000000, 0x99000000}));
+                new int[]{0xE6000000, 0xCC000000, 0xF2000000}));
         root.addView(scrim, matchParent());
+
+        FrameLayout wash = new FrameLayout(this);
+        wash.setFocusable(false);
+        wash.setClickable(false);
+        View glow = new View(this);
+        glow.setBackground(Ui.topGlow(this));
+        glow.setFocusable(false);
+        wash.addView(glow, matchParent());
+        View dots = new View(this);
+        dots.setBackground(Ui.dotGrid(this));
+        dots.setFocusable(false);
+        wash.addView(dots, matchParent());
+        FrameLayout.LayoutParams washLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 280));
+        root.addView(wash, washLp);
 
         LinearLayout dash = new LinearLayout(this);
         dash.setOrientation(LinearLayout.VERTICAL);
@@ -301,10 +315,7 @@ public class MainActivity extends Activity implements Hub.Screen {
         saverClockBox = new LinearLayout(this);
         saverClockBox.setOrientation(LinearLayout.VERTICAL);
         saverClockBox.setGravity(Gravity.END);
-        saverClock = Ui.text(this, "", 72, Color.WHITE, false);
-        saverClock.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
-        saverClock.setLetterSpacing(-0.02f);
-        saverClock.setShadowLayer(Ui.dp(this, 16), 0, Ui.dp(this, 2), 0x88000000);
+        saverClock = Ui.text(this, "", 64, Color.WHITE, false);
         saverWeather = Ui.text(this, "", 18, Ui.TEXT_2, false);
         saverClockBox.addView(saverClock);
         saverClockBox.addView(saverWeather);
@@ -339,10 +350,7 @@ public class MainActivity extends Activity implements Hub.Screen {
         left.setOrientation(LinearLayout.VERTICAL);
         LinearLayout timeRow = new LinearLayout(this);
         timeRow.setGravity(Gravity.BOTTOM);
-        clock = Ui.text(this, "", 78, Color.WHITE, false);
-        clock.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
-        clock.setLetterSpacing(-0.03f);
-        clock.setShadowLayer(Ui.dp(this, 12), 0, Ui.dp(this, 2), 0x66000000);
+        clock = Ui.text(this, "", 64, Color.WHITE, false);
         ampm = Ui.text(this, "", 20, Ui.TEXT_2, false);
         ampm.setPadding(Ui.dp(this, 8), 0, 0, Ui.dp(this, 12));
         timeRow.addView(clock);
@@ -362,13 +370,12 @@ public class MainActivity extends Activity implements Hub.Screen {
         int inset = Ui.dp(this, 18);
         right.setPadding(inset, Ui.dp(this, 14), inset, Ui.dp(this, 14));
         right.setBackground(Ui.glass(this));
-        Ui.roundClip(right, Ui.dp(this, 24));
+        Ui.roundClip(right, Ui.corner(this));
         LinearLayout now = new LinearLayout(this);
         now.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
-        weatherSymbol = Ui.text(this, "", 32, Color.WHITE, false);
+        weatherSymbol = Ui.text(this, "", 28, Ui.ACCENT, false);
         weatherSymbol.setPadding(0, 0, Ui.dp(this, 8), 0);
         weatherTemp = Ui.text(this, "--°", 40, Color.WHITE, false);
-        weatherTemp.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
         now.addView(weatherSymbol);
         now.addView(weatherTemp);
         right.addView(now);
@@ -403,8 +410,8 @@ public class MainActivity extends Activity implements Hub.Screen {
         marketsRow.setOrientation(LinearLayout.HORIZONTAL);
         marketsRow.setGravity(Gravity.CENTER_VERTICAL);
         marketsRow.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));
-        marketsRow.setBackground(Ui.glass(this, Ui.dp(this, 18)));
-        Ui.roundClip(marketsRow, Ui.dp(this, 18));
+        marketsRow.setBackground(Ui.glass(this));
+        Ui.roundClip(marketsRow, Ui.corner(this));
         marketsScroll.addView(marketsRow);
         bar.addView(marketsScroll, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         marketsBar = bar;
@@ -425,7 +432,7 @@ public class MainActivity extends Activity implements Hub.Screen {
     }
 
     private TextView heading(String s) {
-        TextView t = Ui.text(this, s, 15, Ui.TEXT_2, false);
+        TextView t = Ui.text(this, s.toUpperCase(), 12, Ui.ACCENT, false);
         t.setPadding(sidePad, Ui.dp(this, 22), sidePad, Ui.dp(this, 2));
         return t;
     }
@@ -532,7 +539,7 @@ public class MainActivity extends Activity implements Hub.Screen {
             boolean last = i % GRID_COLUMNS == GRID_COLUMNS - 1;
             line.addView(appTile(apps.get(i), gridW, gridH, last ? 0 : gridGap, false, appsHeading, "All apps"));
         }
-        appsHeading.setText("All apps (" + apps.size() + ")");
+        appsHeading.setText(("All apps (" + apps.size() + ")").toUpperCase());
 
         if (refocusPkg != null) {
             View v = findTileFor(favRow, refocusPkg);
@@ -653,6 +660,8 @@ public class MainActivity extends Activity implements Hub.Screen {
         addSystemTile("\u260E", "Phone remote", w, h, this::showPhoneRemote);
         addSystemTile("\u2605", "Dashboard settings", w, h,
                 () -> startActivity(new Intent(this, SettingsActivity.class)));
+        addSystemTile("\u25C9", "Work", w, h,
+                () -> startActivity(new Intent(this, WorkActivity.class)));
         addSystemTile("◐", "Screensaver now", w, h, this::enterScreensaver);
         addSystemTile("↻", "New photo", w, h, () -> slideshow.skip());
     }
@@ -772,7 +781,7 @@ public class MainActivity extends Activity implements Hub.Screen {
             col.setGravity(Gravity.CENTER_HORIZONTAL);
             col.setPadding(Ui.dp(this, 14), 0, 0, 0);
             col.addView(Ui.text(this, d.name, 12, Ui.TEXT_3, false));
-            TextView sym = Ui.text(this, d.symbol, 16, Color.WHITE, false);
+            TextView sym = Ui.text(this, d.symbol, 16, Ui.ACCENT, false);
             sym.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
             col.addView(sym);
             col.addView(Ui.text(this, d.high + "°", 13, Ui.TEXT_2, false));
