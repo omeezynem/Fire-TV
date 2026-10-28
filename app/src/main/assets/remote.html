@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0B1426">
+<meta name="theme-color" content="#141416">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="TV Dash">
@@ -12,13 +12,14 @@
 <title>TV Dash Remote</title>
 <style>
   :root {
-    --bg: #0B1426; --card: #16213d; --card2: #1d2a4d; --line: #2a3a66;
-    --text: #f2f5ff; --muted: #a9b4d6; --accent: #5ac8fa; --warm: #ffd45a; --bad: #ff6b6b; --good: #4ade80;
+    --bg: #141416; --card: #242428; --card2: #32323a; --line: #3a3a44;
+    --text: #f4f4f6; --muted: #b4b4be; --accent: #5ac8fa; --warm: #ffd45a; --bad: #ff6b6b; --good: #4ade80;
+    --home: #ff5a1f;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
     font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  body { padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 24px); max-width: 640px; margin: 0 auto; }
+  body { padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 84px); max-width: 640px; margin: 0 auto; }
   header { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 8px; }
   h1 { font-size: 22px; margin: 0; letter-spacing: .2px; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--accent); margin: 26px 0 10px; }
@@ -60,7 +61,29 @@
   .muted { color: var(--muted); font-size: 14px; }
   .note { background: #2b2440; color: #e8dcff; border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-top: 10px; }
   .hidden { display: none !important; }
-  .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 20px); transform: translateX(-50%); background: #f2f5ff; color: #0B1426; padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; }
+  .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 78px); transform: translateX(-50%); background: #f2f5ff; color: #141416; padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; z-index: 20; }
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; gap: 6px; padding: 8px 12px calc(env(safe-area-inset-bottom) + 8px); background: #101012; border-top: 1px solid #2c2c30; }
+  .tabs button { flex: 1; padding: 10px 6px; border-radius: 12px; background: transparent; color: #9a9aa2; font-size: 14px; }
+  .tabs button.on { background: #2c2c30; color: #fff; font-weight: 600; }
+  .iconrow { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px 0; }
+  .round { width: 58px; height: 58px; border-radius: 50%; background: #2a2a2e; color: #eee; font-size: 22px; padding: 0; display: flex; align-items: center; justify-content: center; }
+  .round.home { width: 74px; height: 74px; background: var(--home); color: #fff; font-size: 30px; }
+  .round.home:active { background: #e04e18; }
+  .pad-wrap { display: flex; justify-content: center; margin: 10px 0 6px; }
+  .pad { width: min(78vw, 300px); height: min(78vw, 300px); position: relative; }
+  .pad button { position: absolute; padding: 0; color: #eee; background: #2a2a2e; display: flex; align-items: center; justify-content: center; font-size: 26px; touch-action: none; }
+  .pad .n { top: 0; left: 18%; width: 64%; height: 34%; border-radius: 160px 160px 16px 16px; }
+  .pad .s { bottom: 0; left: 18%; width: 64%; height: 34%; border-radius: 16px 16px 160px 160px; }
+  .pad .w { left: 0; top: 18%; width: 34%; height: 64%; border-radius: 160px 16px 16px 160px; }
+  .pad .e { right: 0; top: 18%; width: 34%; height: 64%; border-radius: 16px 160px 160px 16px; }
+  .pad .ok { width: 34%; height: 34%; left: 33%; top: 33%; border-radius: 50%; background: #3d3d42; box-shadow: 0 0 0 8px #141416; font-size: 0; }
+  .transport { display: flex; justify-content: center; gap: 22px; margin: 6px 0 12px; }
+  .shortcuts { display: flex; gap: 10px; overflow-x: auto; padding: 4px 0 8px; }
+  .shortcut { flex: 0 0 78px; background: #f4f4f6; color: #16161a; border-radius: 14px; padding: 8px 4px 6px; font-size: 11px; font-weight: 600; }
+  .shortcut img { width: 52px; height: 36px; object-fit: contain; display: block; margin: 0 auto 4px; border-radius: 6px; }
+  .shortcut span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sheet { background: var(--card); border-radius: 16px; padding: 12px; margin: 8px 0; }
+  #remoteNote { margin-top: 4px; }
   .toast.show { opacity: 1; }
   .gate { text-align: center; padding-top: 12vh; }
   .gate input { text-align: center; font-size: 32px; letter-spacing: 12px; max-width: 220px; margin: 18px auto; display: block; }
@@ -83,11 +106,51 @@
     <span id="conn" class="pill"><span class="dot"></span><span id="connText">Connecting…</span></span>
   </header>
 
+  <section data-panel="remote">
+    <div id="remoteNote" class="note">To control any app, turn on ADB debugging on the TV: Settings → My Fire TV → About, click the device name 7 times, then Developer options → ADB debugging. Tap Try connection. If the TV asks, tap Allow. The mic and power buttons are not available.</div>
+    <button id="tryAdb" class="ghost" style="width:100%; margin-top:8px">Try connection</button>
+    <div class="iconrow">
+      <button class="round" data-key="menu" aria-label="Menu">☰</button>
+      <button class="round" data-key="settings" aria-label="Settings">⚙</button>
+    </div>
+    <div class="iconrow">
+      <button class="round" id="keyBtn" aria-label="Keyboard">⌨</button>
+      <span class="round" style="visibility:hidden" aria-hidden="true"></span>
+    </div>
+    <div id="keyboard" class="sheet hidden">
+      <input id="typeText" placeholder="Text to send to the TV" autocomplete="off" enterkeyhint="send">
+      <div class="row" style="margin-top:10px">
+        <button id="typeDel" class="ghost">Delete</button>
+        <button id="typeSend" class="primary">Send</button>
+      </div>
+    </div>
+    <div class="pad-wrap">
+      <div class="pad">
+        <button class="n" data-key="up" data-hold="1" aria-label="Up">⌃</button>
+        <button class="e" data-key="right" data-hold="1" aria-label="Right">›</button>
+        <button class="s" data-key="down" data-hold="1" aria-label="Down">⌄</button>
+        <button class="w" data-key="left" data-hold="1" aria-label="Left">‹</button>
+        <button class="ok" data-key="select" aria-label="Select"></button>
+      </div>
+    </div>
+    <div class="iconrow">
+      <button class="round" data-key="back" aria-label="Back">↩</button>
+      <button class="round home" data-key="home" aria-label="Home">⌂</button>
+    </div>
+    <div class="transport">
+      <button class="round" data-key="rewind" aria-label="Rewind">⏪</button>
+      <button class="round" data-key="play" aria-label="Play or pause">⏯</button>
+      <button class="round" data-key="forward" aria-label="Fast forward">⏩</button>
+    </div>
+    <div id="shortcuts" class="shortcuts"></div>
+  </section>
+
+  <section data-panel="apps" class="hidden">
   <div class="now">
     <div class="time" id="tvTime">--:--</div>
     <div class="wx" id="tvWeather"></div>
   </div>
-  <div id="offScreen" class="note hidden">TV Dash isn't on the TV screen right now. Opening apps may not work until you press Home on the TV and open TV Dash.</div>
+  <div id="offScreen" class="note hidden">TV Dash isn't on the TV screen right now. Opening apps may not work until you open TV Dash on the TV.</div>
   <p id="away" class="note hidden"></p>
 
   <div class="actions">
@@ -104,6 +167,9 @@
   <input id="search" class="search" type="search" placeholder="Search apps">
   <div id="apps" class="grid"></div>
 
+  </section>
+
+  <section data-panel="more" class="hidden">
   <h2>Send photos to the TV</h2>
   <p class="muted">They show up on the TV right away and join the background slideshow. <span id="photoCount"></span></p>
   <div class="row">
@@ -153,6 +219,13 @@
 
   <p class="muted" style="margin-top:28px">Tip: use <b>Share → Add to Home Screen</b> to keep this like an app. At home, use the TV's Wi‑Fi address. Away from home, use the Tailscale address.
     <a href="#" id="forget" style="color: var(--muted)">Sign out this phone</a></p>
+  </section>
+
+  <nav class="tabs">
+    <button type="button" data-tab="remote" class="on">Remote</button>
+    <button type="button" data-tab="apps">Apps</button>
+    <button type="button" data-tab="more">More</button>
+  </nav>
 </main>
 
 <div id="toast" class="toast"></div>
@@ -296,6 +369,8 @@
     $('saverText').textContent = state.saverOn ? 'Wake TV Dash' : 'Screensaver';
     $('photoCount').textContent = state.photos ? state.photos + ' sent so far.' : '';
     renderAway();
+    renderRemote();
+    renderShortcuts();
 
     // Favorites list with reorder buttons.
     const favs = state.favorites.filter(p => state.apps.some(a => a.pkg === p));
@@ -489,6 +564,94 @@
       box.appendChild(a);
     });
   }
+
+  function showTab(name) {
+    document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
+    document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  }
+  document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+  function renderRemote() {
+    const note = $('remoteNote');
+    const r = (state && state.remote) || {};
+    if (r.adb) {
+      note.classList.add('hidden');
+      $('tryAdb').classList.add('hidden');
+    } else {
+      note.classList.remove('hidden');
+      $('tryAdb').classList.remove('hidden');
+      note.textContent = r.accessibility
+        ? 'Limited remote is on. Back, Home, and play/pause work. The direction pad only works in some apps. For every app, turn on ADB debugging (Settings → My Fire TV → Developer options), then tap Try connection and Allow on the TV. Mic and power are not available.'
+        : 'To control any app: on the TV open Settings → My Fire TV → About and click the device name 7 times. Then Developer options → turn on ADB debugging. Tap Try connection. If the TV asks, tap Allow. Mic and power are not available.';
+    }
+  }
+
+  function renderShortcuts() {
+    const row = $('shortcuts');
+    if (!state) return;
+    const favs = (state.favorites || []).filter(p => state.apps.some(a => a.pkg === p));
+    const list = favs.length ? favs : state.apps.slice(0, 8).map(a => a.pkg);
+    const key = list.join('|');
+    if (row.dataset.key === key) return;
+    row.dataset.key = key;
+    row.innerHTML = '';
+    list.forEach(pkg => {
+      const b = document.createElement('button');
+      b.className = 'shortcut';
+      b.innerHTML = '<img alt=""><span></span>';
+      b.querySelector('img').src = icon(pkg);
+      b.querySelector('span').textContent = labelOf(pkg);
+      b.onclick = () => launch(pkg);
+      row.appendChild(b);
+    });
+  }
+
+  let lastKeyErr = 0;
+  async function sendKey(key) {
+    try { await api('/api/key', { key }); }
+    catch (e) {
+      if (e.message === 'pin') return;
+      const now = Date.now();
+      if (now - lastKeyErr < 2500) return;
+      lastKeyErr = now;
+      toast(e.message);
+    }
+  }
+
+  function bindHold(btn) {
+    let delay = null, repeater = null;
+    const stop = () => { clearTimeout(delay); clearInterval(repeater); delay = repeater = null; };
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+      sendKey(btn.dataset.key);
+      stop();
+      delay = setTimeout(() => { repeater = setInterval(() => sendKey(btn.dataset.key), 140); }, 320);
+    });
+    ['pointerup', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+  document.querySelectorAll('[data-key]').forEach(btn => {
+    if (btn.dataset.hold === '1') bindHold(btn);
+    else btn.addEventListener('click', () => sendKey(btn.dataset.key));
+  });
+  $('keyBtn').onclick = () => {
+    $('keyboard').classList.toggle('hidden');
+    if (!$('keyboard').classList.contains('hidden')) $('typeText').focus();
+  };
+  $('typeSend').onclick = async () => {
+    const text = $('typeText').value;
+    if (!text.trim()) { toast('Type something first'); return; }
+    try { await api('/api/type', { text }); $('typeText').value = ''; toast('Sent to the TV'); }
+    catch (e) { if (e.message !== 'pin') toast(e.message); }
+  };
+  $('typeText').onkeydown = (e) => { if (e.key === 'Enter') $('typeSend').click(); };
+  $('typeDel').onclick = () => sendKey('del');
+  $('tryAdb').onclick = async () => {
+    toast('If the TV asks, tap Allow');
+    try { await api('/api/remote/connect', {}); toast('The pad can control any app'); refresh(); }
+    catch (e) { if (e.message !== 'pin') toast(e.message); }
+  };
 
   $('forget').onclick = async (e) => {
     e.preventDefault();

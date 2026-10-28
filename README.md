@@ -32,6 +32,22 @@ The first time, the phone trades that PIN for a saved sign-in. After that it doe
 
 Five wrong PINs still lock pairing for 5 minutes. **Sign out phones** on the TV makes a new PIN and signs every phone out. The remote keeps running in the background and starts when the TV turns on.
 
+## Phone buttons in any app
+
+The **Remote** tab on the phone is a direction pad: up, down, left, right, select in the middle, Back, Home, menu, settings, a keyboard, and play, rewind, and fast-forward. Your favorite apps sit in a strip under the pad. Photos, messages, and dashboard settings are on the **Apps** and **More** tabs.
+
+Android does not let a normal app press buttons inside Netflix or any other app. TV Dash uses the TV's own debugging service, which is the same path as a real remote (`input keyevent`). One-time setup, on the TV:
+
+1. **Settings → My Fire TV → About.**
+2. Click the device name **7 times**, until it says you are a developer.
+3. Go back, then open **Developer options**.
+4. Turn on **ADB debugging**.
+5. Open **Phone remote** and tap **Connect ADB** (or tap **Try connection** on the phone). If the TV asks to allow a connection, tap **Allow** and check **Always allow**.
+
+After that, every button on the phone pad works in any app, including typing. The microphone and the power button from Amazon's phone app are not included.
+
+If you skip debugging, you can turn on **Settings → Accessibility → TV Dash**. Back, Home, and play/pause work. The direction pad only works in apps that show which item is selected. Menu and typing into every app need the debugging step above.
+
 **Opening apps while you're watching something else:** Android 10+ (Fire OS 8) blocks background apps from switching screens. While TV Dash is on screen this always works. To make it work at any time, allow "display over other apps" once from a computer:
 `adb shell appops set com.tvdash.launcher SYSTEM_ALERT_WINDOW allow`
 Fire OS 7 and older don't need this.
@@ -90,7 +106,10 @@ adb connect <fire-tv-ip>:5555 && adb install -r app/build/outputs/apk/debug/app-
 | `Weather.java` | Location lookup plus the Open-Meteo forecast |
 | `Markets.java` | Stock, ETF, and crypto prices for the ticker (Yahoo Finance and CoinGecko) |
 | `Slideshow.java` | Downloads, resizes and cross-fades the background photos |
-| `TvServer.java` | Small home-network web server and the PIN-protected API the phone uses |
+| `TvServer.java` | Small web server and the PIN-protected API the phone uses |
+| `AdbRemote.java` | Sends real remote keys through the TV's ADB debugging service |
+| `RemoteAccessibility.java` | Limited Back, Home, and focus control when debugging is off |
+| `RemoteControl.java` | Picks ADB or accessibility for each phone button |
 | `RemoteService.java`, `BootReceiver.java` | Keep the phone remote running, including after the TV restarts |
 | `Hub.java` | Passes phone commands to the dashboard while it's on screen |
 | `Photos.java` | Stores photos sent from the phone (up to 60) |

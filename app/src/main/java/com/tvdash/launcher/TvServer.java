@@ -324,6 +324,9 @@ final class TvServer {
         switch (p) {
             case "/api/pair": return pair(r);
             case "/api/signout": return signOut(r);
+            case "/api/key": return key(r.json());
+            case "/api/type": return type(r.json());
+            case "/api/remote/connect": return connectAdb();
             case "/api/launch": return launch(r.json().optString("pkg"));
             case "/api/home": return home();
             case "/api/screensaver": return screensaver(r.json().optBoolean("on", true));
@@ -382,6 +385,26 @@ final class TvServer {
         return Response.ok();
     }
 
+    private Response key(JSONObject j) {
+        String err = RemoteControl.press(app, j.optString("key", ""));
+        return err == null ? Response.ok() : Response.error(409, err);
+    }
+
+    private Response type(JSONObject j) {
+        String err = RemoteControl.type(app, j.optString("text", ""));
+        return err == null ? Response.ok() : Response.error(409, err);
+    }
+
+    private Response connectAdb() {
+        String err = RemoteControl.connect(app);
+        if (err != null) return Response.error(409, err);
+        try {
+            return Response.json(200, new JSONObject().put("ok", true).put("remote", RemoteControl.status(app)));
+        } catch (Exception e) {
+            return Response.ok();
+        }
+    }
+
     private Response asset(String name, String type) throws IOException {
         try (InputStream in = app.getAssets().open(name)) {
             ByteArrayOutputStream buf = new ByteArrayOutputStream();
@@ -423,6 +446,7 @@ final class TvServer {
         JSONArray addresses = new JSONArray();
         for (String url : urls()) addresses.put(url);
         s.put("addresses", addresses);
+        s.put("remote", RemoteControl.status(app));
         s.put("settings", new JSONObject()
                 .put("city", prefs.city())
                 .put("fahrenheit", prefs.fahrenheit())

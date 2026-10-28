@@ -108,6 +108,24 @@ public class SettingsActivity extends Activity {
                         .setNegativeButton("Cancel", null)
                         .show());
 
+        section(list, "Phone remote");
+        row(list, "Buttons in other apps", () -> RemoteControl.statusLine(this), () ->
+                new AlertDialog.Builder(this)
+                        .setTitle("Controlling other apps")
+                        .setMessage(RemoteControl.SETUP)
+                        .setPositiveButton("OK", null)
+                        .setNeutralButton(AdbRemote.ready() ? "ADB connected" : "Connect ADB", (d, w) -> {
+                            if (AdbRemote.ready()) return;
+                            Toast.makeText(this, "If the TV asks, tap Allow.", Toast.LENGTH_LONG).show();
+                            new Thread(() -> {
+                                final String err = RemoteControl.connect(this);
+                                runOnUiThread(() -> Toast.makeText(this,
+                                        err == null ? "The phone pad can control any app." : err,
+                                        Toast.LENGTH_LONG).show());
+                            }).start();
+                        })
+                        .show());
+
         section(list, "About");
         row(list, "Use as the Home button", () -> "How to open TV Dash with Home", () ->
                 new AlertDialog.Builder(this)

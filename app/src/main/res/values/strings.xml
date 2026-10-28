@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">TV Dash</string>
+    <string name="accessibility_desc">Lets the TV Dash phone remote press Back, Home, and play or pause in other apps. The direction pad works when the app on screen shows which item is selected. For every app, turn on ADB debugging instead.</string>
 </resources>

@@ -989,6 +989,20 @@ public class MainActivity extends Activity implements Hub.Screen {
         }
         String pin = prefs.pin();
         java.util.List<String> urls = server.urls();
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        int outer = Ui.dp(this, 8);
+        column.setPadding(outer, outer, outer, outer);
+        if (!AdbRemote.ready()) {
+            TextView steps = Ui.text(this, RemoteControl.SETUP, 15, Color.WHITE, false);
+            steps.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 16), Ui.dp(this, 8));
+            column.addView(steps);
+        } else {
+            TextView ready = Ui.text(this, "ADB debugging is connected. The phone's direction pad controls any app.", 15, 0xFFB7F5C8, false);
+            ready.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 16), 0);
+            column.addView(ready);
+        }
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
@@ -1030,11 +1044,23 @@ public class MainActivity extends Activity implements Hub.Screen {
         tip.setMaxWidth(Ui.dp(this, 340));
         text.addView(tip);
         box.addView(text);
+        column.addView(box);
+        scroll.addView(column);
 
         new AlertDialog.Builder(this)
                 .setTitle("Phone remote")
-                .setView(box)
+                .setView(scroll)
                 .setPositiveButton("Done", null)
+                .setNegativeButton(AdbRemote.ready() ? "ADB connected" : "Connect ADB", (d, w) -> {
+                    if (AdbRemote.ready()) return;
+                    Toast.makeText(this, "If the TV asks, tap Allow.", Toast.LENGTH_LONG).show();
+                    io.execute(() -> {
+                        final String err = RemoteControl.connect(this);
+                        ui.post(() -> Toast.makeText(this,
+                                err == null ? "The phone pad can control any app." : err,
+                                Toast.LENGTH_LONG).show());
+                    });
+                })
                 .setNeutralButton("Sign out phones", (d, w) -> {
                     prefs.newPin();
                     showPhoneRemote();
