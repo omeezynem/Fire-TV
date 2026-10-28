@@ -25,10 +25,16 @@ public class RemoteAccessibility extends AccessibilityService {
     private static volatile RemoteAccessibility instance;
 
     static boolean enabled(Context context) {
-        String flat = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        if (flat == null || flat.isEmpty()) return false;
-        String full = new ComponentName(context, RemoteAccessibility.class).flattenToString();
-        return flat.contains(full) || flat.contains(context.getPackageName() + "/.RemoteAccessibility");
+        try {
+            if (context == null) return false;
+            String flat = Settings.Secure.getString(context.getContentResolver(),
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            if (flat == null || flat.isEmpty()) return false;
+            String full = new ComponentName(context, RemoteAccessibility.class).flattenToString();
+            return flat.contains(full) || flat.contains(context.getPackageName() + "/.RemoteAccessibility");
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     /** @return true when this service actually handled the button */
@@ -123,6 +129,14 @@ public class RemoteAccessibility extends AccessibilityService {
     }
 
     private boolean perform(String name) {
+        try {
+            return performUnchecked(name);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private boolean performUnchecked(String name) {
         if ("back".equals(name)) return performGlobalAction(GLOBAL_ACTION_BACK);
         if ("home".equals(name)) return performGlobalAction(GLOBAL_ACTION_HOME);
         if ("select".equals(name)) return clickFocused();
@@ -142,6 +156,14 @@ public class RemoteAccessibility extends AccessibilityService {
     }
 
     private boolean setText(String text) {
+        try {
+            return setTextUnchecked(text);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private boolean setTextUnchecked(String text) {
         AccessibilityNodeInfo node = focused();
         while (node != null && !node.isEditable()) {
             AccessibilityNodeInfo parent = node.getParent();

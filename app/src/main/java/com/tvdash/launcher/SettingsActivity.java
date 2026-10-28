@@ -40,8 +40,7 @@ public class SettingsActivity extends Activity {
         list.setPadding(side, Ui.dp(this, 40), side, Ui.dp(this, 56));
         scroll.addView(list);
 
-        TextView title = Ui.text(this, "Settings", 36, Color.WHITE, false);
-        title.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
+        TextView title = Ui.text(this, "SETTINGS", 28, Color.WHITE, false);
         title.setPadding(Ui.dp(this, 4), 0, 0, Ui.dp(this, 8));
         list.addView(title);
 
@@ -126,6 +125,9 @@ public class SettingsActivity extends Activity {
                         })
                         .show());
 
+        section(list, "Work");
+        row(list, "Vigo key", () -> prefs.workKeySet() ? "Saved" : "Not set", this::askWorkKey);
+
         section(list, "About");
         row(list, "Use as the Home button", () -> "How to open TV Dash with Home", () ->
                 new AlertDialog.Builder(this)
@@ -142,7 +144,10 @@ public class SettingsActivity extends Activity {
         row(list, "Version", this::version, null);
 
         setContentView(scroll);
-        if (list.getChildCount() > 2) list.getChildAt(2).requestFocus();
+        try {
+            if (list.getChildCount() > 2) list.getChildAt(2).requestFocus();
+        } catch (RuntimeException ignored) {
+        }
     }
 
     private String version() {
@@ -163,26 +168,30 @@ public class SettingsActivity extends Activity {
     }
 
     private String tickerValue(boolean crypto) {
-        String text = crypto ? prefs.cryptoText() : prefs.stocksText();
-        if (text.isEmpty()) return "Hidden";
-        if (text.length() > 32) return (crypto ? prefs.crypto().size() : prefs.stocks().size()) + " symbols";
-        return text;
+        try {
+            String text = crypto ? prefs.cryptoText() : prefs.stocksText();
+            if (text == null || text.isEmpty()) return "Hidden";
+            if (text.length() > 32) return (crypto ? prefs.crypto().size() : prefs.stocks().size()) + " symbols";
+            return text;
+        } catch (RuntimeException e) {
+            return "Hidden";
+        }
     }
 
     private void section(LinearLayout list, String name) {
-        TextView t = Ui.text(this, name, 13, Ui.TEXT_3, false);
+        TextView t = Ui.text(this, name.toUpperCase(), 12, Ui.ACCENT, false);
         t.setPadding(Ui.dp(this, 18), Ui.dp(this, 22), 0, Ui.dp(this, 8));
         list.addView(t);
     }
 
     private void row(LinearLayout list, String label, final Value value, final Runnable onClick) {
-        float radius = Ui.dp(this, 16);
+        float radius = Ui.corner(this);
         android.widget.FrameLayout shell = new android.widget.FrameLayout(this);
         shell.setFocusable(true);
         shell.setClickable(onClick != null);
         Ui.noSystemHighlight(shell);
         shell.setBackground(Ui.glass(this, radius));
-        shell.setClipToOutline(true);
+        Ui.roundClip(shell, radius);
 
         LinearLayout r = new LinearLayout(this);
         r.setGravity(Gravity.CENTER_VERTICAL);
@@ -225,6 +234,40 @@ public class SettingsActivity extends Activity {
                     refresh();
                     d.dismiss();
                 })
+                .show();
+    }
+
+    private void askWorkKey() {
+        final EditText input = new EditText(this);
+        input.setHint("Vigo key");
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        FrameLayout box = new FrameLayout(this);
+        int p = Ui.dp(this, 20);
+        box.setPadding(p, Ui.dp(this, 8), p, 0);
+        box.addView(input);
+        new AlertDialog.Builder(this)
+                .setTitle("Vigo key")
+                .setMessage("Paste the key from Vigo. It is saved on this TV only and is not shown again. "
+                        + "Leave Work Mode on demo data by clearing it.")
+                .setView(box)
+                .setPositiveButton("Save", (d, w) -> {
+                    String next = input.getText().toString().trim();
+                    if (next.length() == 0) {
+                        Toast.makeText(this, "Key left unchanged", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    prefs.setWorkBearer(next);
+                    refresh();
+                    Toast.makeText(this, "Key saved", Toast.LENGTH_SHORT).show();
+                })
+                .setNeutralButton("Clear", (d, w) -> {
+                    prefs.setWorkBearer("");
+                    refresh();
+                    Toast.makeText(this, "Key cleared. Work Mode will use demo data.", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Cancel", null)
                 .show();
     }
 

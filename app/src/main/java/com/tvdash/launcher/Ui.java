@@ -1,16 +1,19 @@
 package com.tvdash.launcher;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Outline;
+import android.graphics.Shader;
 import android.graphics.Typeface;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
+import android.view.ViewOutlineProvider;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.DecelerateInterpolator;
-import android.view.animation.Interpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -18,14 +21,15 @@ import android.widget.TextView;
 
 /** Small helpers for building the TV screens in code. */
 final class Ui {
-    /** One accent, the system blue used on a dark screen. */
-    static final int ACCENT = 0xFF0A84FF;
-    static final int TEXT = 0xFFFFFFFF;
-    static final int TEXT_2 = 0xB3EBEBF5;
-    static final int TEXT_3 = 0x73EBEBF5;
-    static final int GLASS = 0xB81C1C1E;
-    static final int TILE_BG = 0x8C1C1C1E;
-    private static final Interpolator EASE = new DecelerateInterpolator();
+    /** Terminal green. Red is reserved for a down move in the ticker. */
+    static final int ACCENT = 0xFF00FF88;
+    static final int TEXT = 0xFFEDEDED;
+    static final int TEXT_2 = 0xFFA1A1AA;
+    static final int TEXT_3 = 0xFF737373;
+    static final int HAIRLINE = 0xFF2A2A2A;
+    static final int PANEL = 0xF0000000;
+    static final int TILE_BG = 0xE6080808;
+    static final Typeface MONO = Typeface.create("monospace", Typeface.NORMAL);
 
     private Ui() {}
 
@@ -39,9 +43,13 @@ final class Ui {
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
         t.setTextColor(color);
         t.setIncludeFontPadding(false);
-        if (bold) t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        else t.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        t.setTypeface(bold ? Typeface.create(MONO, Typeface.BOLD) : MONO);
         return t;
+    }
+
+    /** Almost square. Kept at 2dp so a 1px border still meets cleanly on older GPUs. */
+    static int corner(Context c) {
+        return dp(c, 2);
     }
 
     static GradientDrawable round(int color, float radiusPx) {
@@ -51,34 +59,79 @@ final class Ui {
         return d;
     }
 
-    /** Dark translucent panel. A real blur is too heavy for a Fire TV stick, so this is the glass. */
+    /** Flat black panel with a 1px gray border. */
     static GradientDrawable glass(Context c) {
-        return glass(c, dp(c, 24));
+        return glass(c, corner(c));
     }
 
     static GradientDrawable glass(Context c, float radiusPx) {
-        GradientDrawable d = round(GLASS, radiusPx);
-        d.setStroke(Math.max(1, dp(c, 1)), 0x22FFFFFF);
+        GradientDrawable d = round(PANEL, radiusPx);
+        d.setStroke(Math.max(1, dp(c, 1)), HAIRLINE);
         return d;
     }
 
-    /** Soft edge shown only while focused. Not a solid white ring. */
+    /** Green outline plus a faint green fill. Shown only while focused. No scale. */
     static GradientDrawable focusEdge(Context c, float radiusPx) {
-        GradientDrawable d = round(0x14FFFFFF, radiusPx);
-        d.setStroke(Math.max(1, dp(c, 1)), 0x88FFFFFF);
+        GradientDrawable d = round(0x2200FF88, radiusPx);
+        d.setStroke(Math.max(2, dp(c, 2)), ACCENT);
+        return d;
+    }
+
+    /** Faint green glow for the top of the dashboard. One static drawable, not redrawn per frame. */
+    static GradientDrawable topGlow(Context c) {
+        GradientDrawable g = new GradientDrawable();
+        g.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+        g.setGradientCenter(0.18f, 0.15f);
+        g.setGradientRadius(dp(c, 520));
+        g.setColors(new int[]{0x4400FF88, 0x00000000});
+        return g;
+    }
+
+    /** Tiny repeating dots. The bitmap is created once. */
+    static Drawable dotGrid(Context c) {
+        int s = Math.max(8, dp(c, 16));
+        Bitmap b = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
+        b.eraseColor(0x00000000);
+        b.setPixel(0, 0, 0x3300FF88);
+        BitmapDrawable d = new BitmapDrawable(c.getResources(), b);
+        d.setTileModeXY(Shader.TileMode.REPEAT, Shader.TileMode.REPEAT);
+        d.setGravity(Gravity.FILL);
         return d;
     }
 
     static void noSystemHighlight(View v) {
-        if (Build.VERSION.SDK_INT >= 26) v.setDefaultFocusHighlightEnabled(false);
+        if (Build.VERSION.SDK_INT >= 26) {
+            try {
+                v.setDefaultFocusHighlightEnabled(false);
+            } catch (RuntimeException ignored) {
+            }
+        }
     }
 
-    /** Scale, lift, and a soft edge. Draw-only animation so focus stays quick on a stick. */
+    /** Round clip that does not depend on the background drawable's outline (that crashes some Fire OS builds). */
+    static void roundClip(View v, final float radiusPx) {
+        if (v == null) return;
+        try {
+            v.setOutlineProvider(new ViewOutlineProvider() {
+                @Override public void getOutline(View view, Outline outline) {
+                    int w = view.getWidth();
+                    int h = view.getHeight();
+                    if (w <= 0 || h <= 0) {
+                        outline.setRect(0, 0, 0, 0);
+                        return;
+                    }
+                    float r = Math.min(radiusPx, Math.min(w, h) / 2f);
+                    outline.setRoundRect(0, 0, w, h, r);
+                }
+            });
+            v.setClipToOutline(true);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    /** Green outline only. No scale or elevation, so focus stays cheap on a stick. */
     static void lift(View v, View edge, boolean has, float scale) {
-        v.animate().scaleX(has ? scale : 1f).scaleY(has ? scale : 1f)
-                .translationZ(has ? dp(v.getContext(), 10) : 0f)
-                .setDuration(180).setInterpolator(EASE).start();
-        if (edge != null) edge.animate().alpha(has ? 1f : 0f).setDuration(180).setInterpolator(EASE).start();
+        if (edge != null) edge.setAlpha(has ? 1f : 0f);
     }
 
     /** Focusable 16:9 card. Grows slightly and lifts when the remote lands on it. */
@@ -90,9 +143,9 @@ final class Ui {
         tile.setFocusable(true);
         tile.setClickable(true);
         noSystemHighlight(tile);
-        float radius = dp(c, 20);
+        float radius = corner(c);
         tile.setBackground(round(TILE_BG, radius));
-        tile.setClipToOutline(true);
+        roundClip(tile, radius);
         final View edge = new View(c);
         edge.setBackground(focusEdge(c, radius));
         edge.setAlpha(0f);

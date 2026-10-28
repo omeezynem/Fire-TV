@@ -8,7 +8,8 @@ TV Dash is a custom dashboard app for Amazon Fire TV (and any Android TV). It ru
 - **Market ticker**: a strip of stock, ETF, and crypto prices. Each symbol shows its name, the latest price, and a green ▲ or red ▼ with today's percent change. It does not show quantities, balances, or holdings. The list starts empty, so the strip stays hidden until you add symbols. The same prices show on the screensaver.
 - **Favorites row**: your streaming apps as large tiles using each app's own TV artwork. On first launch it pins whichever of Netflix, Prime Video, YouTube, Disney+, Hulu, Max, Peacock, Paramount+, Pluto, Plex and Spotify are installed.
 - **All apps** grid with every app on the TV, sorted A–Z. It updates on its own when you install or remove an app.
-- **System row**: one-click Fire TV Settings, Network, Manage apps, Dashboard settings, Screensaver, and New photo.
+- **System row**: one-click Fire TV Settings, Network, Manage apps, Dashboard settings, Work, Screensaver, and New photo.
+- **Work**: a view-only Vigo board (list, US map, and reports). With no key it shows labeled demo data. A key saved in settings loads live open orders from Vigo. It does not show money, contacts, notes, or street addresses.
 - **Status line**: whether you're online, plus free storage and free memory.
 - **Photo slideshow background** that cross-fades every 15 s, 30 s, 1 min or 5 min. It shows random scenic photos, or your own photo links.
 - **Screensaver**: after a few minutes without the remote, the dashboard fades away and leaves the photos, a clock, and the weather. Any button brings it back.
@@ -65,6 +66,22 @@ Up to 16 of each. From the phone remote, use the same two fields under **Dashboa
 
 Stock and ETF prices come from Yahoo Finance. Crypto prices come from CoinGecko. Both are free and need no API key. Each symbol shows the price and whether it is up or down today. If the network fails, the last prices stay up. Clear both lists to hide the strip.
 
+Under the prices, TV Dash rotates recent headlines for those same symbols. Stocks use the symbol you typed. Crypto uses the Yahoo pair, such as `BTC-USD`. Headlines come from Yahoo's public RSS feed (no API key). Each line shows the symbol, the headline, Yahoo, and how old it is. The list refreshes about every 12 minutes, newest first, and duplicates are dropped. If the feed fails, the last headlines stay. With no symbols, the line is hidden.
+
+## Work Mode
+
+Open **Work** on the system row, or tap **Work** on the phone. Back, or the Dashboard button, returns to the normal home screen.
+
+Work Mode opens on the map. Open, hot, overdue, and on-time counts sit above it. Dots are colored by trade: landscaping green, HVAC red, plumbing blue, and a different color for each other trade. The legend is on the right. A coral ring means the job is hot. Select on a dot zooms to that state. List and Reports are the other two tabs. The home screen stays black and green. Work Mode uses Vigo navy.
+
+The list is demo data until you save a Vigo key. On the TV, open **Dashboard settings → Vigo key**. On the phone, use **More → Vigo work**. The key is stored only on the TV, masked after you save it, and is not included in the phone's status payload. With a key, TV Dash calls `https://vigo.fm/api/tv/work-orders` about every two minutes. A rejected key shows **Invalid key** and does not fall back to the demo list.
+
+## My shows
+
+Fire TV apps such as Netflix and Prime do not share a reliable "continue watching" list with other apps. TV Dash checks Android TV's Watch Next list when the device offers it, and shows those titles first when any exist. On a typical Fire TV that list is empty.
+
+The row you can count on is **My shows**, which starts empty. On the phone, open the remote's **More** tab, search a title, and add it. Search uses TVmaze (free, no key) for the name, poster, and network. On the TV, select the tile. TV Dash opens a search for that title inside Netflix, Prime Video, Hulu, Disney+, Max, YouTube, or the other matching app when it is installed. If that app won't take the search link, TV Dash opens the app and tells you to search for the name. Nothing here reads your streaming accounts.
+
 ## Remote controls
 | Button | What it does |
 |---|---|
@@ -105,6 +122,10 @@ adb connect <fire-tv-ip>:5555 && adb install -r app/build/outputs/apk/debug/app-
 | `AppEntry.java` | Finds the TV's launchable apps and their banners |
 | `Weather.java` | Location lookup plus the Open-Meteo forecast |
 | `Markets.java` | Stock, ETF, and crypto prices for the ticker (Yahoo Finance and CoinGecko) |
+| `Headlines.java` | Recent headlines for the saved symbols (Yahoo Finance RSS) |
+| `Shows.java` | Saved shows, Watch Next when the TV exposes it, and app search links |
+| `WorkActivity.java` | Vigo work list, map, and reports |
+| `WorkClient.java` | Live Vigo feed, or demo orders when no key is saved |
 | `Slideshow.java` | Downloads, resizes and cross-fades the background photos |
 | `TvServer.java` | Small web server and the PIN-protected API the phone uses |
 | `AdbRemote.java` | Sends real remote keys through the TV's ADB debugging service |

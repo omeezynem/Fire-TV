@@ -319,6 +319,7 @@ final class TvServer {
         switch (p) {
             case "/api/state": return state();
             case "/api/icon": return icon(r.query.get("pkg"));
+            case "/api/tv": return tvSearch(r.query.get("q"));
         }
         if (!post) return Response.error(404, "Not found");
         switch (p) {
@@ -336,6 +337,8 @@ final class TvServer {
             case "/api/message": return message(r.json());
             case "/api/settings": return settings(r.json());
             case "/api/favorites": return favorites(r.json());
+            case "/api/shows": return shows(r.json());
+            case "/api/work": return workMode();
             default: return Response.error(404, "Not found");
         }
     }
@@ -465,7 +468,36 @@ final class TvServer {
             apps.put(new JSONObject().put("pkg", e.pkg).put("label", e.label));
         }
         s.put("apps", apps);
+        JSONArray shows = new JSONArray();
+        for (Shows.Show show : prefs.shows()) {
+            shows.put(new JSONObject()
+                    .put("name", show.name)
+                    .put("poster", show.poster)
+                    .put("network", show.network));
+        }
+        s.put("shows", shows);
+        s.put("workKeySet", prefs.workKeySet());
         return Response.json(200, s);
+    }
+
+    private Response tvSearch(String q) throws Exception {
+        JSONArray arr = new JSONArray();
+        for (Shows.Show show : Shows.search(q)) {
+            arr.put(new JSONObject()
+                    .put("name", show.name)
+                    .put("poster", show.poster)
+                    .put("network", show.network));
+        }
+        return Response.json(200, new JSONObject().put("results", arr));
+    }
+
+    private Response shows(JSONObject body) throws Exception {
+        String op = body.optString("op", "add");
+        String name = body.optString("name", "");
+        if ("remove".equals(op)) prefs.removeShow(name);
+        else prefs.addShow(name, body.optString("poster", ""), body.optString("network", ""));
+        if (Hub.screen != null) Hub.screen.remoteSettingsChanged();
+        return Response.json(200, new JSONObject().put("ok", true));
     }
 
     private Response icon(String pkg) {
@@ -507,6 +539,11 @@ final class TvServer {
 
     private Response home() {
         return start(new Intent(app, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+    }
+
+    private Response workMode() {
+        return start(new Intent(app, WorkActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
     }
 
@@ -592,6 +629,12 @@ final class TvServer {
         if (j.has("showAllApps")) prefs.setShowAllApps(j.getBoolean("showAllApps"));
         if (stocks != null) prefs.setStocks(stocks);
         if (crypto != null) prefs.setCrypto(crypto);
+        if (j.optBoolean("clearWorkKey", false)) prefs.setWorkBearer("");
+        else if (j.has("workKey")) {
+            String workKey = j.optString("workKey", "").trim();
+            if (workKey.length() > 200) workKey = workKey.substring(0, 200);
+            if (workKey.length() > 0) prefs.setWorkBearer(workKey);
+        }
         main.post(() -> {
             Hub.Screen screen = Hub.screen;
             if (screen != null) screen.remoteSettingsChanged();

@@ -11,8 +11,8 @@ android {
         minSdk 22
         // Fire OS tops out at Android 11 (API 30).
         targetSdk 30
-        versionCode 3
-        versionName "1.2"
+        versionCode 6
+        versionName "1.5"
     }
 
     // One fixed key so new builds install over old ones without losing your favorites.
