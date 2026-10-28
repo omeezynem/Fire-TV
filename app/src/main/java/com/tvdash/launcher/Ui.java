@@ -1,14 +1,16 @@
 package com.tvdash.launcher;
 
 import android.content.Context;
-import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.Interpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -16,8 +18,14 @@ import android.widget.TextView;
 
 /** Small helpers for building the TV screens in code. */
 final class Ui {
-    static final int ACCENT = 0xFF5AC8FA;
-    static final int TILE_BG = 0x40FFFFFF;
+    /** One accent, the system blue used on a dark screen. */
+    static final int ACCENT = 0xFF0A84FF;
+    static final int TEXT = 0xFFFFFFFF;
+    static final int TEXT_2 = 0xB3EBEBF5;
+    static final int TEXT_3 = 0x73EBEBF5;
+    static final int GLASS = 0xB81C1C1E;
+    static final int TILE_BG = 0x8C1C1C1E;
+    private static final Interpolator EASE = new DecelerateInterpolator();
 
     private Ui() {}
 
@@ -32,7 +40,7 @@ final class Ui {
         t.setTextColor(color);
         t.setIncludeFontPadding(false);
         if (bold) t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        t.setShadowLayer(dp(c, 3), 0, dp(c, 1), 0x99000000);
+        else t.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         return t;
     }
 
@@ -43,13 +51,37 @@ final class Ui {
         return d;
     }
 
-    static GradientDrawable ring(Context c, float radiusPx) {
-        GradientDrawable d = round(Color.TRANSPARENT, radiusPx);
-        d.setStroke(dp(c, 3), Color.WHITE);
+    /** Dark translucent panel. A real blur is too heavy for a Fire TV stick, so this is the glass. */
+    static GradientDrawable glass(Context c) {
+        return glass(c, dp(c, 24));
+    }
+
+    static GradientDrawable glass(Context c, float radiusPx) {
+        GradientDrawable d = round(GLASS, radiusPx);
+        d.setStroke(Math.max(1, dp(c, 1)), 0x22FFFFFF);
         return d;
     }
 
-    /** Focusable 16:9 card that grows and gets a white ring when the remote lands on it. */
+    /** Soft edge shown only while focused. Not a solid white ring. */
+    static GradientDrawable focusEdge(Context c, float radiusPx) {
+        GradientDrawable d = round(0x14FFFFFF, radiusPx);
+        d.setStroke(Math.max(1, dp(c, 1)), 0x88FFFFFF);
+        return d;
+    }
+
+    static void noSystemHighlight(View v) {
+        if (Build.VERSION.SDK_INT >= 26) v.setDefaultFocusHighlightEnabled(false);
+    }
+
+    /** Scale, lift, and a soft edge. Draw-only animation so focus stays quick on a stick. */
+    static void lift(View v, View edge, boolean has, float scale) {
+        v.animate().scaleX(has ? scale : 1f).scaleY(has ? scale : 1f)
+                .translationZ(has ? dp(v.getContext(), 10) : 0f)
+                .setDuration(180).setInterpolator(EASE).start();
+        if (edge != null) edge.animate().alpha(has ? 1f : 0f).setDuration(180).setInterpolator(EASE).start();
+    }
+
+    /** Focusable 16:9 card. Grows slightly and lifts when the remote lands on it. */
     static FrameLayout tile(Context c, int w, int h, int marginEnd, final Runnable onFocused) {
         final FrameLayout tile = new FrameLayout(c);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, h);
@@ -57,24 +89,23 @@ final class Ui {
         tile.setLayoutParams(lp);
         tile.setFocusable(true);
         tile.setClickable(true);
-        float radius = dp(c, 10);
+        noSystemHighlight(tile);
+        float radius = dp(c, 20);
         tile.setBackground(round(TILE_BG, radius));
         tile.setClipToOutline(true);
-        final View ring = new View(c);
-        ring.setBackground(ring(c, radius));
-        ring.setVisibility(View.INVISIBLE);
-        ring.setTag("ring");
-        tile.addView(ring, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        final float lift = dp(c, 8);
+        final View edge = new View(c);
+        edge.setBackground(focusEdge(c, radius));
+        edge.setAlpha(0f);
+        edge.setTag("ring");
+        tile.addView(edge, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         tile.setOnFocusChangeListener((v, has) -> {
-            v.animate().scaleX(has ? 1.1f : 1f).scaleY(has ? 1.1f : 1f).translationZ(has ? lift : 0f).setDuration(150).start();
-            ring.setVisibility(has ? View.VISIBLE : View.INVISIBLE);
+            lift(v, edge, has, 1.06f);
             if (has && onFocused != null) onFocused.run();
         });
         return tile;
     }
 
-    /** Adds content under the focus ring so the ring stays on top. */
+    /** Adds content under the focus edge so the edge stays on top. */
     static void fill(FrameLayout tile, View content, FrameLayout.LayoutParams lp) {
         tile.addView(content, tile.getChildCount() - 1, lp);
     }
@@ -100,11 +131,11 @@ final class Ui {
             int s = (int) (h * 0.48f);
             col.addView(iv, new LinearLayout.LayoutParams(s, s));
         } else {
-            TextView sym = text(c, symbol, 28, Color.WHITE, false);
+            TextView sym = text(c, symbol, 26, TEXT, false);
             sym.setGravity(Gravity.CENTER);
             col.addView(sym);
         }
-        TextView t = text(c, label, 13, Color.WHITE, true);
+        TextView t = text(c, label, 13, TEXT_2, false);
         t.setGravity(Gravity.CENTER);
         t.setSingleLine(true);
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);

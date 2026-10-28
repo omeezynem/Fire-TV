@@ -20,6 +20,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.StatFs;
 import android.provider.Settings;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -43,11 +46,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * The home screen: clock, weather, favorite apps, all apps, system shortcuts, photo background and screensaver.
- * Also takes live commands from the phone remote through {@link Hub}.
+ * The home screen: clock, weather, market ticker, favorite apps, all apps, system shortcuts,
+ * photo background and screensaver. Also takes live commands from the phone remote through {@link Hub}.
  */
 public class MainActivity extends Activity implements Hub.Screen {
     private static final long WEATHER_REFRESH_MS = 20 * 60 * 1000;
+    private static final long MARKET_REFRESH_MS = 90 * 1000;
+    private static final int UP_COLOR = 0xFF30D158;
+    private static final int DOWN_COLOR = 0xFFFF453A;
+    private static final int FLAT_COLOR = 0x73EBEBF5;
     private static final int FAV_VISIBLE = 5;
     private static final int GRID_COLUMNS = 6;
 
@@ -66,15 +73,22 @@ public class MainActivity extends Activity implements Hub.Screen {
     private TextView favHeading, appsHeading;
     private LinearLayout favRow, appsGrid, systemRow;
     private View appsSection;
+    private View marketsBar;
+    private HorizontalScrollView marketsScroll;
+    private HorizontalScrollView saverMarketsScroll;
+    private LinearLayout marketsRow;
+    private LinearLayout saverMarketsRow;
     private LinearLayout saverClockBox;
     private TextView saverClock, saverWeather;
     private TextView messageBanner;
 
     private List<AppEntry> apps = new ArrayList<>();
     private String refocusPkg;
-    private boolean saverOn, swallowKeyUp;
+    private boolean saverOn, swallowKeyUp, resumed;
     private long weatherAt;
-    private String weatherKey;
+    private String weatherKey = "";
+    private String marketKey = "";
+    private int marketGen;
     private int sidePad, gap;
 
     private final Runnable clockTick = new Runnable() {
@@ -87,6 +101,18 @@ public class MainActivity extends Activity implements Hub.Screen {
     private final Runnable weatherTick = new Runnable() {
         @Override public void run() {
             refreshWeather(true);
+        }
+    };
+    private final Runnable marketTick = new Runnable() {
+        @Override public void run() {
+            refreshMarkets();
+        }
+    };
+    private final Runnable marketScrollTick = new Runnable() {
+        @Override public void run() {
+            tickMarketScroll(marketsScroll);
+            tickMarketScroll(saverMarketsScroll);
+            ui.postDelayed(this, 45);
         }
     };
     private final Runnable idle = this::enterScreensaver;
@@ -104,8 +130,8 @@ public class MainActivity extends Activity implements Hub.Screen {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = new Prefs(this);
-        sidePad = Ui.dp(this, 48);
-        gap = Ui.dp(this, 16);
+        sidePad = Ui.dp(this, 56);
+        gap = Ui.dp(this, 22);
         setContentView(buildScreen());
 
         DisplayMetrics dm = getResources().getDisplayMetrics();
@@ -124,6 +150,7 @@ public class MainActivity extends Activity implements Hub.Screen {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         appsSection.setVisibility(prefs.showAllApps() ? View.VISIBLE : View.GONE);
         loadApps();
         ui.removeCallbacks(clockTick);
@@ -131,15 +158,21 @@ public class MainActivity extends Activity implements Hub.Screen {
         slideshow.start(Photos.slideshowSources(this, prefs), prefs.slideSeconds());
         refreshWeather(false);
         exitScreensaver();
+        refreshMarkets();
+        ui.removeCallbacks(marketScrollTick);
+        ui.post(marketScrollTick);
         Hub.screen = this;
     }
 
     @Override
     protected void onPause() {
+        resumed = false;
         super.onPause();
         Hub.screen = null;
         ui.removeCallbacks(clockTick);
         ui.removeCallbacks(weatherTick);
+        ui.removeCallbacks(marketTick);
+        ui.removeCallbacks(marketScrollTick);
         ui.removeCallbacks(idle);
         slideshow.stop();
     }
@@ -193,9 +226,7 @@ public class MainActivity extends Activity implements Hub.Screen {
 
     private View buildScreen() {
         FrameLayout root = new FrameLayout(this);
-        GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{0xFF0B1426, 0xFF1F2A55, 0xFF3A1F4F});
-        root.setBackground(base);
+        root.setBackgroundColor(0xFF000000);
 
         for (int id = 1; id <= 2; id++) {
             ImageView bg = new ImageView(this);
@@ -207,12 +238,13 @@ public class MainActivity extends Activity implements Hub.Screen {
 
         scrim = new View(this);
         scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0xB3000000, 0x59000000, 0xE6000000}));
+                new int[]{0x66000000, 0x22000000, 0x99000000}));
         root.addView(scrim, matchParent());
 
         LinearLayout dash = new LinearLayout(this);
         dash.setOrientation(LinearLayout.VERTICAL);
         dash.addView(buildTopBar());
+        dash.addView(buildMarketsBar());
 
         scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -221,7 +253,7 @@ public class MainActivity extends Activity implements Hub.Screen {
         LinearLayout sections = new LinearLayout(this);
         sections.setOrientation(LinearLayout.VERTICAL);
         sections.setClipChildren(false);
-        sections.setPadding(0, 0, 0, Ui.dp(this, 48));
+        sections.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 64));
 
         favHeading = heading("Favorites");
         sections.addView(favHeading);
@@ -251,12 +283,29 @@ public class MainActivity extends Activity implements Hub.Screen {
         dashboard = dash;
         root.addView(dash, matchParent());
 
+        // Screensaver prices, along the bottom. The clock sits above this strip.
+        saverMarketsScroll = quietScroller();
+        saverMarketsRow = new LinearLayout(this);
+        saverMarketsRow.setOrientation(LinearLayout.HORIZONTAL);
+        saverMarketsRow.setGravity(Gravity.CENTER_VERTICAL);
+        saverMarketsRow.setPadding(0, Ui.dp(this, 4), Ui.dp(this, 24), Ui.dp(this, 4));
+        saverMarketsScroll.addView(saverMarketsRow);
+        saverMarketsScroll.setAlpha(0f);
+        saverMarketsScroll.setVisibility(View.GONE);
+        FrameLayout.LayoutParams tickerLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        tickerLp.setMargins(sidePad, 0, sidePad, Ui.dp(this, 16));
+        root.addView(saverMarketsScroll, tickerLp);
+
         // Screensaver clock, shown only while the dashboard is hidden.
         saverClockBox = new LinearLayout(this);
         saverClockBox.setOrientation(LinearLayout.VERTICAL);
         saverClockBox.setGravity(Gravity.END);
-        saverClock = Ui.text(this, "", 64, Color.WHITE, false);
-        saverWeather = Ui.text(this, "", 20, 0xDDFFFFFF, false);
+        saverClock = Ui.text(this, "", 72, Color.WHITE, false);
+        saverClock.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
+        saverClock.setLetterSpacing(-0.02f);
+        saverClock.setShadowLayer(Ui.dp(this, 16), 0, Ui.dp(this, 2), 0x88000000);
+        saverWeather = Ui.text(this, "", 18, Ui.TEXT_2, false);
         saverClockBox.addView(saverClock);
         saverClockBox.addView(saverWeather);
         saverClockBox.setAlpha(0f);
@@ -271,8 +320,8 @@ public class MainActivity extends Activity implements Hub.Screen {
         messageBanner.setGravity(Gravity.CENTER);
         int mp = Ui.dp(this, 22);
         messageBanner.setPadding(mp * 2, mp, mp * 2, mp);
-        messageBanner.setBackground(Ui.round(0xE6142850, Ui.dp(this, 18)));
-        messageBanner.setElevation(Ui.dp(this, 12));
+        messageBanner.setBackground(Ui.glass(this));
+        messageBanner.setElevation(Ui.dp(this, 8));
         messageBanner.setMaxWidth(screenWidth() * 3 / 4);
         messageBanner.setVisibility(View.GONE);
         root.addView(messageBanner, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -283,55 +332,101 @@ public class MainActivity extends Activity implements Hub.Screen {
     private View buildTopBar() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setPadding(sidePad, Ui.dp(this, 28), sidePad, Ui.dp(this, 8));
+        bar.setPadding(sidePad, Ui.dp(this, 36), sidePad, Ui.dp(this, 6));
+        bar.setGravity(Gravity.CENTER_VERTICAL);
 
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
         LinearLayout timeRow = new LinearLayout(this);
         timeRow.setGravity(Gravity.BOTTOM);
-        clock = Ui.text(this, "", 64, Color.WHITE, false);
+        clock = Ui.text(this, "", 78, Color.WHITE, false);
         clock.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
-        ampm = Ui.text(this, "", 22, 0xCCFFFFFF, false);
-        ampm.setPadding(Ui.dp(this, 8), 0, 0, Ui.dp(this, 8));
+        clock.setLetterSpacing(-0.03f);
+        clock.setShadowLayer(Ui.dp(this, 12), 0, Ui.dp(this, 2), 0x66000000);
+        ampm = Ui.text(this, "", 20, Ui.TEXT_2, false);
+        ampm.setPadding(Ui.dp(this, 8), 0, 0, Ui.dp(this, 12));
         timeRow.addView(clock);
         timeRow.addView(ampm);
         left.addView(timeRow);
-        date = Ui.text(this, "", 20, 0xE6FFFFFF, true);
-        date.setPadding(0, Ui.dp(this, 6), 0, 0);
+        date = Ui.text(this, "", 18, Ui.TEXT_2, false);
+        date.setPadding(0, Ui.dp(this, 2), 0, 0);
         left.addView(date);
-        status = Ui.text(this, "", 13, 0xB3FFFFFF, false);
-        status.setPadding(0, Ui.dp(this, 8), 0, 0);
+        status = Ui.text(this, "", 12, Ui.TEXT_3, false);
+        status.setPadding(0, Ui.dp(this, 10), 0, 0);
         left.addView(status);
         bar.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         LinearLayout right = new LinearLayout(this);
         right.setOrientation(LinearLayout.VERTICAL);
         right.setGravity(Gravity.END);
+        int inset = Ui.dp(this, 18);
+        right.setPadding(inset, Ui.dp(this, 14), inset, Ui.dp(this, 14));
+        right.setBackground(Ui.glass(this));
+        right.setClipToOutline(true);
         LinearLayout now = new LinearLayout(this);
         now.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
-        weatherSymbol = Ui.text(this, "", 40, 0xFFFFD45A, false);
-        weatherSymbol.setPadding(0, 0, Ui.dp(this, 10), 0);
-        weatherTemp = Ui.text(this, "--°", 52, Color.WHITE, false);
+        weatherSymbol = Ui.text(this, "", 32, Color.WHITE, false);
+        weatherSymbol.setPadding(0, 0, Ui.dp(this, 8), 0);
+        weatherTemp = Ui.text(this, "--°", 40, Color.WHITE, false);
+        weatherTemp.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
         now.addView(weatherSymbol);
         now.addView(weatherTemp);
         right.addView(now);
-        weatherDesc = Ui.text(this, "Loading weather…", 16, 0xE6FFFFFF, true);
+        weatherDesc = Ui.text(this, "Loading weather…", 15, Ui.TEXT_2, false);
         weatherDesc.setGravity(Gravity.END);
+        weatherDesc.setPadding(0, Ui.dp(this, 2), 0, 0);
         right.addView(weatherDesc);
-        weatherPlace = Ui.text(this, "", 13, 0xB3FFFFFF, false);
+        weatherPlace = Ui.text(this, "", 13, Ui.TEXT_3, false);
         weatherPlace.setGravity(Gravity.END);
-        weatherPlace.setPadding(0, Ui.dp(this, 4), 0, 0);
+        weatherPlace.setPadding(0, Ui.dp(this, 2), 0, 0);
         right.addView(weatherPlace);
         forecast = new LinearLayout(this);
-        forecast.setPadding(0, Ui.dp(this, 10), 0, 0);
+        forecast.setPadding(0, Ui.dp(this, 12), 0, 0);
         right.addView(forecast);
         bar.addView(right);
         return bar;
     }
 
+    /** A thin strip under the clock. Hidden until the user adds at least one symbol. */
+    private View buildMarketsBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        int hm = sidePad;
+        int vm = Ui.dp(this, 4);
+        bar.setPadding(hm, vm, hm, Ui.dp(this, 2));
+        bar.setFocusable(false);
+        bar.setVisibility(View.GONE);
+
+        marketsScroll = quietScroller();
+        marketsRow = new LinearLayout(this);
+        marketsRow.setOrientation(LinearLayout.HORIZONTAL);
+        marketsRow.setGravity(Gravity.CENTER_VERTICAL);
+        marketsRow.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));
+        marketsRow.setBackground(Ui.glass(this, Ui.dp(this, 18)));
+        marketsRow.setClipToOutline(true);
+        marketsScroll.addView(marketsRow);
+        bar.addView(marketsScroll, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        marketsBar = bar;
+        return bar;
+    }
+
+    /** Not focusable, so the remote keeps moving between app tiles. */
+    private HorizontalScrollView quietScroller() {
+        HorizontalScrollView h = new HorizontalScrollView(this);
+        h.setHorizontalScrollBarEnabled(false);
+        h.setFocusable(false);
+        h.setFocusableInTouchMode(false);
+        h.setClickable(false);
+        h.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        h.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        h.setSmoothScrollingEnabled(false);
+        return h;
+    }
+
     private TextView heading(String s) {
-        TextView t = Ui.text(this, s, 17, 0xF2FFFFFF, true);
-        t.setPadding(sidePad, Ui.dp(this, 14), sidePad, Ui.dp(this, 2));
+        TextView t = Ui.text(this, s, 15, Ui.TEXT_2, false);
+        t.setPadding(sidePad, Ui.dp(this, 22), sidePad, Ui.dp(this, 2));
         return t;
     }
 
@@ -339,7 +434,7 @@ public class MainActivity extends Activity implements Hub.Screen {
         LinearLayout r = new LinearLayout(this);
         r.setOrientation(LinearLayout.HORIZONTAL);
         r.setClipChildren(false);
-        r.setPadding(sidePad, Ui.dp(this, 12), sidePad, Ui.dp(this, 12));
+        r.setPadding(sidePad, Ui.dp(this, 14), sidePad, Ui.dp(this, 8));
         return r;
     }
 
@@ -349,6 +444,8 @@ public class MainActivity extends Activity implements Hub.Screen {
         h.setClipChildren(false);
         h.setClipToPadding(false);
         h.setSmoothScrollingEnabled(true);
+        h.setFocusable(false);
+        h.setFocusableInTouchMode(false);
         h.addView(row);
         return h;
     }
@@ -617,8 +714,12 @@ public class MainActivity extends Activity implements Hub.Screen {
             b.append("   \u00B7   ").append(gb(mi.availMem)).append(" memory free");
         }
         TvServer server = TvServer.running;
-        String address = server == null ? null : server.address();
-        if (address != null) b.append("   \u00B7   Phone remote: ").append(address.substring("http://".length()));
+        if (server != null) {
+            for (String url : server.urls()) {
+                String host = url.substring("http://".length());
+                b.append("   \u00B7   ").append(host.startsWith("100.") ? "Tailscale " : "Phone remote: ").append(host);
+            }
+        }
         return b.toString();
     }
 
@@ -670,12 +771,179 @@ public class MainActivity extends Activity implements Hub.Screen {
             col.setOrientation(LinearLayout.VERTICAL);
             col.setGravity(Gravity.CENTER_HORIZONTAL);
             col.setPadding(Ui.dp(this, 14), 0, 0, 0);
-            col.addView(Ui.text(this, d.name, 12, 0xCCFFFFFF, true));
-            TextView sym = Ui.text(this, d.symbol, 18, 0xFFFFD45A, false);
-            sym.setPadding(0, Ui.dp(this, 3), 0, Ui.dp(this, 3));
+            col.addView(Ui.text(this, d.name, 12, Ui.TEXT_3, false));
+            TextView sym = Ui.text(this, d.symbol, 16, Color.WHITE, false);
+            sym.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
             col.addView(sym);
-            col.addView(Ui.text(this, d.high + "° / " + d.low + "°", 12, Color.WHITE, false));
+            col.addView(Ui.text(this, d.high + "°", 13, Ui.TEXT_2, false));
             forecast.addView(col);
+        }
+    }
+
+    // ---------------------------------------------------------------- markets
+
+    private void refreshMarkets() {
+        ui.removeCallbacks(marketTick);
+        final List<String> stocks = prefs.stocks();
+        final List<String> crypto = prefs.crypto();
+        final int gen = ++marketGen;
+        if (stocks.isEmpty() && crypto.isEmpty()) {
+            showMarkets(new ArrayList<Markets.Quote>());
+            return;
+        }
+        showMarkets(Markets.remembered(stocks, crypto));
+        io.execute(() -> {
+            final List<Markets.Quote> quotes = Markets.fetch(stocks, crypto);
+            ui.post(() -> {
+                if (!resumed || gen != marketGen || isFinishing()) return;
+                showMarkets(quotes);
+            });
+        });
+        ui.postDelayed(marketTick, MARKET_REFRESH_MS);
+    }
+
+    private void showMarkets(List<Markets.Quote> quotes) {
+        String key = marketKey(quotes);
+        boolean rebuild = !key.equals(marketKey);
+        if (quotes.isEmpty()) {
+            marketKey = "";
+            marketsBar.setVisibility(View.GONE);
+            marketsRow.removeAllViews();
+            saverMarketsRow.removeAllViews();
+            syncSaverMarkets();
+            return;
+        }
+        marketKey = key;
+        marketsBar.setVisibility(View.VISIBLE);
+        renderQuotes(marketsRow, quotes, false, false, rebuild);
+        renderQuotes(saverMarketsRow, quotes, true, false, rebuild);
+        if (rebuild) {
+            marketsScroll.scrollTo(0, 0);
+            marketsScroll.setTag(0);
+            saverMarketsScroll.scrollTo(0, 0);
+            saverMarketsScroll.setTag(0);
+        }
+        syncSaverMarkets();
+    }
+
+    private static String marketKey(List<Markets.Quote> quotes) {
+        StringBuilder b = new StringBuilder();
+        for (Markets.Quote q : quotes) b.append(q.symbol).append('|');
+        return b.toString();
+    }
+
+    private void renderQuotes(LinearLayout row, List<Markets.Quote> quotes, boolean compact,
+                              boolean withLabel, boolean rebuild) {
+        int offset = withLabel ? 1 : 0;
+        if (!rebuild && row.getChildCount() == quotes.size() + offset) {
+            for (int i = 0; i < quotes.size(); i++) {
+                View child = row.getChildAt(i + offset);
+                if (child instanceof TextView) updateChip((TextView) child, quotes.get(i));
+            }
+            return;
+        }
+        row.removeAllViews();
+        if (withLabel) row.addView(marketLabel(compact));
+        for (Markets.Quote q : quotes) row.addView(chip(q, compact));
+    }
+
+    private TextView marketLabel(boolean compact) {
+        TextView label = Ui.text(this, "Markets", compact ? 14 : 15, 0xCCFFFFFF, true);
+        label.setPadding(0, 0, Ui.dp(this, 12), 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.CENTER_VERTICAL;
+        label.setLayoutParams(lp);
+        return label;
+    }
+
+    private TextView chip(Markets.Quote q, boolean compact) {
+        TextView t = Ui.text(this, "", compact ? 13 : 14, Color.WHITE, false);
+        t.setMaxLines(1);
+        t.setFocusable(false);
+        int h = Ui.dp(this, compact ? 8 : 12);
+        t.setPadding(h, 0, h, 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.CENTER_VERTICAL;
+        t.setLayoutParams(lp);
+        updateChip(t, q);
+        return t;
+    }
+
+    private void updateChip(TextView t, Markets.Quote q) {
+        t.setText(quoteText(q));
+        t.setContentDescription(quoteDescription(q));
+    }
+
+    /** Symbol, price, and today's move only. No quantity or account value. */
+    private CharSequence quoteText(Markets.Quote q) {
+        SpannableStringBuilder b = new SpannableStringBuilder();
+        if (!q.hasPrice) {
+            appendColored(b, q.symbol, Color.WHITE);
+            appendColored(b, "   \u2014", FLAT_COLOR);
+            return b;
+        }
+        int direction = Markets.direction(q);
+        int color = direction > 0 ? UP_COLOR : direction < 0 ? DOWN_COLOR : FLAT_COLOR;
+        appendColored(b, q.symbol, Color.WHITE);
+        appendColored(b, "  " + Markets.formatPrice(q.price), Ui.TEXT_2);
+        if (q.hasChange) appendColored(b, "  " + Markets.arrow(q) + " " + Markets.formatChange(q.changePct), color);
+        else appendColored(b, "  \u2014", FLAT_COLOR);
+        return b;
+    }
+
+    private static void appendColored(SpannableStringBuilder b, String text, int color) {
+        int start = b.length();
+        b.append(text);
+        b.setSpan(new ForegroundColorSpan(color), start, b.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
+
+    private static String quoteDescription(Markets.Quote q) {
+        if (!q.hasPrice) return q.symbol + ", price unavailable";
+        String price = Markets.formatPrice(q.price);
+        if (!q.hasChange) return q.symbol + " " + price;
+        String dir = Markets.direction(q) > 0 ? "up " : Markets.direction(q) < 0 ? "down " : "unchanged ";
+        return q.symbol + " " + price + ", " + dir + Markets.formatChange(q.changePct);
+    }
+
+    private void tickMarketScroll(HorizontalScrollView h) {
+        if (h == null || h.getVisibility() != View.VISIBLE || h.getWidth() <= 0) return;
+        View child = h.getChildCount() == 0 ? null : h.getChildAt(0);
+        if (child == null) return;
+        int max = child.getWidth() - h.getWidth();
+        if (max <= Ui.dp(this, 12)) {
+            if (h.getScrollX() != 0) h.scrollTo(0, 0);
+            return;
+        }
+        int hold = h.getTag() instanceof Integer ? (Integer) h.getTag() : 0;
+        if (h.getScrollX() >= max - 2) {
+            h.setTag(hold + 1);
+            if (hold > 40) {
+                h.setTag(0);
+                h.scrollTo(0, 0);
+            }
+            return;
+        }
+        if (hold != 0) h.setTag(0);
+        h.scrollBy(Math.max(1, Ui.dp(this, 1)), 0);
+    }
+
+    private void syncSaverMarkets() {
+        boolean show = saverOn && saverMarketsRow.getChildCount() > 0;
+        FrameLayout.LayoutParams clockLp = (FrameLayout.LayoutParams) saverClockBox.getLayoutParams();
+        clockLp.bottomMargin = Ui.dp(this, show ? 86 : 36);
+        saverClockBox.setLayoutParams(clockLp);
+        if (show) {
+            if (saverMarketsScroll.getVisibility() != View.VISIBLE) {
+                saverMarketsScroll.setVisibility(View.VISIBLE);
+                saverMarketsScroll.setAlpha(0f);
+                saverMarketsScroll.animate().alpha(1f).setDuration(800).start();
+            }
+        } else if (saverMarketsScroll.getVisibility() == View.VISIBLE) {
+            saverMarketsScroll.animate().cancel();
+            saverMarketsScroll.setAlpha(0f);
+            saverMarketsScroll.setVisibility(View.GONE);
         }
     }
 
@@ -696,6 +964,7 @@ public class MainActivity extends Activity implements Hub.Screen {
         scrim.animate().alpha(0.35f).setDuration(800).start();
         saverClockBox.setVisibility(View.VISIBLE);
         saverClockBox.animate().alpha(1f).setDuration(800).start();
+        syncSaverMarkets();
     }
 
     private void exitScreensaver() {
@@ -707,6 +976,7 @@ public class MainActivity extends Activity implements Hub.Screen {
             saverClockBox.animate().alpha(0f).setDuration(300).withEndAction(() -> {
                 if (!saverOn) saverClockBox.setVisibility(View.GONE);
             }).start();
+            syncSaverMarkets();
         }
         resetIdle();
     }
@@ -726,6 +996,21 @@ public class MainActivity extends Activity implements Hub.Screen {
             return;
         }
         String pin = prefs.pin();
+        java.util.List<String> urls = server.urls();
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        int outer = Ui.dp(this, 8);
+        column.setPadding(outer, outer, outer, outer);
+        if (!AdbRemote.ready()) {
+            TextView steps = Ui.text(this, RemoteControl.SETUP, 15, Color.WHITE, false);
+            steps.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 16), Ui.dp(this, 8));
+            column.addView(steps);
+        } else {
+            TextView ready = Ui.text(this, "ADB debugging is connected. The phone's direction pad controls any app.", 15, 0xFFB7F5C8, false);
+            ready.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 16), 0);
+            column.addView(ready);
+        }
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
@@ -745,24 +1030,46 @@ public class MainActivity extends Activity implements Hub.Screen {
         or.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 4));
         text.addView(or);
         text.addView(Ui.text(this, address.substring("http://".length()), 24, Ui.ACCENT, true));
+        String vpn = null;
+        for (String url : urls) {
+            if (url.startsWith("http://100.") && !url.equals(address)) vpn = url.substring("http://".length());
+        }
+        if (vpn != null) {
+            TextView away = Ui.text(this, "Away from home (Tailscale)", 15, 0xCCFFFFFF, false);
+            away.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 4));
+            text.addView(away);
+            text.addView(Ui.text(this, vpn, 18, Ui.ACCENT, true));
+        }
         TextView pinLabel = Ui.text(this, "PIN", 15, 0xCCFFFFFF, false);
         pinLabel.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 4));
         text.addView(pinLabel);
         TextView pinText = Ui.text(this, pin, 34, Color.WHITE, true);
         pinText.setLetterSpacing(0.3f);
         text.addView(pinText);
-        TextView tip = Ui.text(this, "Your phone must be on the same Wi‑Fi as the TV. "
-                + "Tip: use \"Add to Home Screen\" on your phone to keep it like an app.", 13, 0xB3FFFFFF, false);
+        TextView tip = Ui.text(this, "You only enter the PIN once. The phone stays signed in, at home or over Tailscale, "
+                + "until you tap Sign out phones. Use Add to Home Screen to keep it like an app.", 13, 0xB3FFFFFF, false);
         tip.setPadding(0, Ui.dp(this, 14), 0, 0);
-        tip.setMaxWidth(Ui.dp(this, 320));
+        tip.setMaxWidth(Ui.dp(this, 340));
         text.addView(tip);
         box.addView(text);
+        column.addView(box);
+        scroll.addView(column);
 
         new AlertDialog.Builder(this)
                 .setTitle("Phone remote")
-                .setView(box)
+                .setView(scroll)
                 .setPositiveButton("Done", null)
-                .setNeutralButton("New PIN", (d, w) -> {
+                .setNegativeButton(AdbRemote.ready() ? "ADB connected" : "Connect ADB", (d, w) -> {
+                    if (AdbRemote.ready()) return;
+                    Toast.makeText(this, "If the TV asks, tap Allow.", Toast.LENGTH_LONG).show();
+                    io.execute(() -> {
+                        final String err = RemoteControl.connect(this);
+                        ui.post(() -> Toast.makeText(this,
+                                err == null ? "The phone pad can control any app." : err,
+                                Toast.LENGTH_LONG).show());
+                    });
+                })
+                .setNeutralButton("Sign out phones", (d, w) -> {
                     prefs.newPin();
                     showPhoneRemote();
                 })
@@ -791,6 +1098,7 @@ public class MainActivity extends Activity implements Hub.Screen {
         updateClock();
         slideshow.start(Photos.slideshowSources(this, prefs), prefs.slideSeconds());
         refreshWeather(false);
+        refreshMarkets();
         resetIdle();
     }
 

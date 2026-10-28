@@ -4,11 +4,10 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.pm.PackageInfo;
 import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.StateListDrawable;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -33,16 +32,17 @@ public class SettingsActivity extends Activity {
         prefs = new Prefs(this);
 
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{0xFF0B1426, 0xFF1F2A55, 0xFF3A1F4F}));
+        scroll.setBackgroundColor(0xFF000000);
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
-        int side = Ui.dp(this, 120);
-        list.setPadding(side, Ui.dp(this, 36), side, Ui.dp(this, 48));
+        list.setClipChildren(false);
+        int side = Ui.dp(this, 140);
+        list.setPadding(side, Ui.dp(this, 40), side, Ui.dp(this, 56));
         scroll.addView(list);
 
-        TextView title = Ui.text(this, "Dashboard settings", 30, Color.WHITE, true);
-        title.setPadding(0, 0, 0, Ui.dp(this, 20));
+        TextView title = Ui.text(this, "Settings", 36, Color.WHITE, false);
+        title.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
+        title.setPadding(Ui.dp(this, 4), 0, 0, Ui.dp(this, 8));
         list.addView(title);
 
         section(list, "Weather");
@@ -52,6 +52,18 @@ public class SettingsActivity extends Activity {
         row(list, "Temperature", () -> prefs.fahrenheit() ? "°F" : "°C", () ->
                 choose("Temperature", new String[]{"Fahrenheit (°F)", "Celsius (°C)"}, prefs.fahrenheit() ? 0 : 1,
                         i -> prefs.setFahrenheit(i == 0)));
+
+        section(list, "Markets");
+        row(list, "Stocks and ETFs", () -> tickerValue(false), () ->
+                askText("Stocks and ETFs",
+                        "Up to 16 symbols, separated by commas. For example SPY, QQQ. "
+                                + "The ticker shows the price and whether it is up or down today. Leave empty to hide.",
+                        prefs.stocksText(), false, true, prefs::setStocksText));
+        row(list, "Crypto", () -> tickerValue(true), () ->
+                askText("Crypto",
+                        "Up to 16 symbols, separated by commas. For example BTC, ETH. "
+                                + "The ticker shows the price and whether it is up or down today. Leave empty to hide.",
+                        prefs.cryptoText(), false, true, prefs::setCryptoText));
 
         section(list, "Clock");
         row(list, "Clock style", () -> prefs.clock24() ? "24-hour" : "12-hour", () ->
@@ -96,6 +108,24 @@ public class SettingsActivity extends Activity {
                         .setNegativeButton("Cancel", null)
                         .show());
 
+        section(list, "Phone remote");
+        row(list, "Buttons in other apps", () -> RemoteControl.statusLine(this), () ->
+                new AlertDialog.Builder(this)
+                        .setTitle("Controlling other apps")
+                        .setMessage(RemoteControl.SETUP)
+                        .setPositiveButton("OK", null)
+                        .setNeutralButton(AdbRemote.ready() ? "ADB connected" : "Connect ADB", (d, w) -> {
+                            if (AdbRemote.ready()) return;
+                            Toast.makeText(this, "If the TV asks, tap Allow.", Toast.LENGTH_LONG).show();
+                            new Thread(() -> {
+                                final String err = RemoteControl.connect(this);
+                                runOnUiThread(() -> Toast.makeText(this,
+                                        err == null ? "The phone pad can control any app." : err,
+                                        Toast.LENGTH_LONG).show());
+                            }).start();
+                        })
+                        .show());
+
         section(list, "About");
         row(list, "Use as the Home button", () -> "How to open TV Dash with Home", () ->
                 new AlertDialog.Builder(this)
@@ -132,40 +162,52 @@ public class SettingsActivity extends Activity {
         return m == 0 ? "Off" : m + " minutes of no remote use";
     }
 
+    private String tickerValue(boolean crypto) {
+        String text = crypto ? prefs.cryptoText() : prefs.stocksText();
+        if (text.isEmpty()) return "Hidden";
+        if (text.length() > 32) return (crypto ? prefs.crypto().size() : prefs.stocks().size()) + " symbols";
+        return text;
+    }
+
     private void section(LinearLayout list, String name) {
-        TextView t = Ui.text(this, name.toUpperCase(), 13, Ui.ACCENT, true);
-        t.setLetterSpacing(0.08f);
-        t.setPadding(Ui.dp(this, 16), Ui.dp(this, 18), 0, Ui.dp(this, 6));
+        TextView t = Ui.text(this, name, 13, Ui.TEXT_3, false);
+        t.setPadding(Ui.dp(this, 18), Ui.dp(this, 22), 0, Ui.dp(this, 8));
         list.addView(t);
     }
 
     private void row(LinearLayout list, String label, final Value value, final Runnable onClick) {
+        float radius = Ui.dp(this, 16);
+        android.widget.FrameLayout shell = new android.widget.FrameLayout(this);
+        shell.setFocusable(true);
+        shell.setClickable(onClick != null);
+        Ui.noSystemHighlight(shell);
+        shell.setBackground(Ui.glass(this, radius));
+        shell.setClipToOutline(true);
+
         LinearLayout r = new LinearLayout(this);
         r.setGravity(Gravity.CENTER_VERTICAL);
-        int p = Ui.dp(this, 16);
-        r.setPadding(p, Ui.dp(this, 14), p, Ui.dp(this, 14));
-        r.setFocusable(true);
-        r.setClickable(onClick != null);
-
-        StateListDrawable bg = new StateListDrawable();
-        GradientDrawable focused = Ui.round(0x33FFFFFF, Ui.dp(this, 10));
-        focused.setStroke(Ui.dp(this, 2), Color.WHITE);
-        bg.addState(new int[]{android.R.attr.state_focused}, focused);
-        bg.addState(new int[]{}, Ui.round(0x14FFFFFF, Ui.dp(this, 10)));
-        r.setBackground(bg);
-
-        TextView l = Ui.text(this, label, 18, Color.WHITE, true);
+        int p = Ui.dp(this, 18);
+        r.setPadding(p, Ui.dp(this, 16), p, Ui.dp(this, 16));
+        TextView l = Ui.text(this, label, 18, Color.WHITE, false);
         r.addView(l, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        final TextView v = Ui.text(this, value.get(), 16, 0xCCFFFFFF, false);
+        final TextView v = Ui.text(this, value.get(), 16, Ui.TEXT_2, false);
         v.setGravity(Gravity.END);
+        v.setPadding(Ui.dp(this, 16), 0, 0, 0);
         r.addView(v);
+        shell.addView(r);
+        final View edge = new View(this);
+        edge.setBackground(Ui.focusEdge(this, radius));
+        edge.setAlpha(0f);
+        shell.addView(edge, new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        shell.setOnFocusChangeListener((view, has) -> Ui.lift(view, edge, has, 1.02f));
         refreshers.add(() -> v.setText(value.get()));
-        if (onClick != null) r.setOnClickListener(x -> onClick.run());
+        if (onClick != null) shell.setOnClickListener(x -> onClick.run());
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = Ui.dp(this, 6);
-        list.addView(r, lp);
+        lp.bottomMargin = Ui.dp(this, 8);
+        list.addView(shell, lp);
     }
 
     private void refresh() {
@@ -187,6 +229,10 @@ public class SettingsActivity extends Activity {
     }
 
     private void askText(String title, String hint, String current, boolean multiLine, final TextChoice onSave) {
+        askText(title, hint, current, multiLine, false, onSave);
+    }
+
+    private void askText(String title, String hint, String current, boolean multiLine, boolean symbols, final TextChoice onSave) {
         final EditText input = new EditText(this);
         input.setText(current);
         input.setSelection(input.getText().length());
@@ -194,6 +240,11 @@ public class SettingsActivity extends Activity {
         if (multiLine) {
             input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_VARIATION_URI);
             input.setMinLines(3);
+        } else if (symbols) {
+            input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                    | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+            input.setSingleLine(true);
+            input.setHorizontallyScrolling(true);
         } else {
             input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
             input.setSingleLine(true);

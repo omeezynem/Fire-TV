@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0B1426">
+<meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="TV Dash">
@@ -12,55 +12,78 @@
 <title>TV Dash Remote</title>
 <style>
   :root {
-    --bg: #0B1426; --card: #16213d; --card2: #1d2a4d; --line: #2a3a66;
-    --text: #f2f5ff; --muted: #a9b4d6; --accent: #5ac8fa; --warm: #ffd45a; --bad: #ff6b6b; --good: #4ade80;
+    --bg: #000; --card: #1c1c1e; --card2: #2c2c2e; --line: #3a3a3c;
+    --text: #f5f5f7; --muted: #8e8e93; --accent: #0a84ff; --warm: #ffd60a; --bad: #ff453a; --good: #30d158;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
-    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  body { padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 24px); max-width: 640px; margin: 0 auto; }
-  header { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 8px; }
-  h1 { font-size: 22px; margin: 0; letter-spacing: .2px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--accent); margin: 26px 0 10px; }
+    font: 16px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  body { padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 84px); max-width: 640px; margin: 0 auto; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 22px 4px 6px; }
+  h1 { font-size: 28px; font-weight: 300; margin: 0; letter-spacing: -0.4px; }
+  h2 { font-size: 13px; font-weight: 500; letter-spacing: .01em; text-transform: none; color: var(--muted); margin: 28px 8px 8px; }
   .pill { font-size: 13px; padding: 5px 10px; border-radius: 999px; background: var(--card); color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
   .pill.on .dot { background: var(--good); }
-  .now { background: linear-gradient(135deg, #1f3a68, #3a1f4f); border-radius: 18px; padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .now .time { font-size: 34px; font-weight: 300; white-space: nowrap; }
+  .now { background: var(--card); border-radius: 22px; padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .now .time { font-size: 40px; font-weight: 300; letter-spacing: -1px; white-space: nowrap; }
   .now .wx { text-align: right; color: var(--muted); font-size: 14px; }
   .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
-  button, .btn { appearance: none; border: 0; border-radius: 14px; background: var(--card); color: var(--text); font: inherit; padding: 14px 10px; cursor: pointer; }
-  button:active { transform: scale(.97); background: var(--card2); }
+  button, .btn { appearance: none; border: 0; border-radius: 14px; background: var(--card); color: var(--text); font: inherit; padding: 14px 10px; cursor: pointer; transition: transform .15s ease, background .15s ease; }
+  button:active { transform: scale(.97); }
   button:disabled { opacity: .35; }
-  button.primary { background: var(--accent); color: #062033; font-weight: 600; }
+  button.primary { background: var(--accent); color: #fff; font-weight: 600; }
   button.ghost { background: transparent; border: 1px solid var(--line); }
   .actions button { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; }
   .actions button span { font-size: 22px; }
-  input, textarea, select { width: 100%; font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  input, textarea, select { width: 100%; font: inherit; color: var(--text); background: var(--card2); border: 0; border-radius: 12px; padding: 12px 14px; }
   textarea { resize: vertical; min-height: 70px; }
   .search { margin-bottom: 10px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
-  .app { position: relative; background: var(--card); border-radius: 14px; padding: 10px 6px 8px; text-align: center; font-size: 12px; color: var(--muted); }
+  .app { position: relative; background: var(--card); border-radius: 18px; padding: 12px 6px 10px; text-align: center; font-size: 12px; color: var(--muted); }
   .app img { width: 44px; height: 44px; display: block; margin: 0 auto 6px; border-radius: 10px; }
   .app .name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
   .app .star { position: absolute; top: 2px; right: 2px; background: none; padding: 6px; font-size: 16px; color: #56628a; }
   .app .star.on { color: var(--warm); }
   .favs { display: flex; flex-direction: column; gap: 8px; }
-  .fav { display: flex; align-items: center; gap: 10px; background: var(--card); border-radius: 12px; padding: 8px 10px; }
+  .fav { display: flex; align-items: center; gap: 10px; background: var(--card); border-radius: 16px; padding: 10px 12px; }
   .fav img { width: 32px; height: 32px; border-radius: 8px; }
   .fav .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fav button { padding: 8px 12px; border-radius: 10px; background: var(--card2); }
   .row { display: flex; gap: 10px; align-items: center; }
   .row > * { flex: 1; }
-  .field { margin-bottom: 12px; }
-  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-  .seg { display: flex; background: var(--card); border-radius: 12px; padding: 4px; gap: 4px; }
+  .field { margin-bottom: 10px; background: var(--card); border-radius: 16px; padding: 12px 14px; }
+  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .seg { display: flex; background: #000; border-radius: 12px; padding: 3px; gap: 3px; }
   .seg button { flex: 1; padding: 10px; background: transparent; border-radius: 9px; }
-  .seg button.on { background: var(--accent); color: #062033; font-weight: 600; }
+  .seg button.on { background: var(--card2); color: #fff; font-weight: 600; }
   .muted { color: var(--muted); font-size: 14px; }
-  .note { background: #2b2440; color: #e8dcff; border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-top: 10px; }
+  .note { background: var(--card); color: var(--text); border-radius: 16px; padding: 12px 14px; font-size: 14px; margin-top: 10px; }
   .hidden { display: none !important; }
-  .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 20px); transform: translateX(-50%); background: #f2f5ff; color: #0B1426; padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; }
+  .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 78px); transform: translateX(-50%); background: #f2f5ff; color: #141416; padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; z-index: 20; }
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; gap: 6px; padding: 6px 16px calc(env(safe-area-inset-bottom) + 8px); background: rgba(28,28,30,.92); border-top: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(16px); }
+  .tabs button { flex: 1; padding: 10px 6px; border-radius: 12px; background: transparent; color: #8e8e93; font-size: 13px; font-weight: 500; }
+  .tabs button.on { background: transparent; color: #fff; font-weight: 600; }
+  .iconrow { display: flex; justify-content: space-between; align-items: center; padding: 10px 18px 0; }
+  .round { width: 56px; height: 56px; border-radius: 50%; background: #2c2c2e; color: #f5f5f7; font-size: 20px; padding: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+  .round.home { width: 72px; height: 72px; background: #f5f5f7; color: #000; font-size: 28px; }
+  .round.home:active { background: #d8d8dc; }
+  .pad-wrap { display: flex; justify-content: center; margin: 18px 0 8px; }
+  .pad { width: min(76vw, 292px); height: min(76vw, 292px); position: relative; }
+  .pad button { position: absolute; padding: 0; color: #f5f5f7; background: #2c2c2e; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 300; touch-action: none; box-shadow: 0 10px 28px rgba(0,0,0,.28); }
+  .pad .n { top: 0; left: 18%; width: 64%; height: 34%; border-radius: 160px 160px 16px 16px; }
+  .pad .s { bottom: 0; left: 18%; width: 64%; height: 34%; border-radius: 16px 16px 160px 160px; }
+  .pad .w { left: 0; top: 18%; width: 34%; height: 64%; border-radius: 160px 16px 16px 160px; }
+  .pad .e { right: 0; top: 18%; width: 34%; height: 64%; border-radius: 16px 160px 160px 16px; }
+  .pad .ok { width: 32%; height: 32%; left: 34%; top: 34%; border-radius: 50%; background: #3a3a3c; box-shadow: 0 0 0 10px #000, 0 10px 24px rgba(0,0,0,.35); font-size: 0; }
+  .transport { display: flex; justify-content: center; gap: 22px; margin: 6px 0 12px; }
+  .shortcuts { display: flex; gap: 10px; overflow-x: auto; padding: 4px 0 8px; }
+  .shortcut { flex: 0 0 84px; background: var(--card); color: var(--text); border-radius: 18px; padding: 10px 6px 8px; font-size: 11px; font-weight: 500; }
+  .shortcut img { width: 52px; height: 36px; object-fit: contain; display: block; margin: 0 auto 4px; border-radius: 6px; }
+  .shortcut span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sheet { background: var(--card); border-radius: 20px; padding: 14px; margin: 12px 0; }
+  #remoteNote { margin-top: 4px; }
   .toast.show { opacity: 1; }
   .gate { text-align: center; padding-top: 12vh; }
   .gate input { text-align: center; font-size: 32px; letter-spacing: 12px; max-width: 220px; margin: 18px auto; display: block; }
@@ -71,7 +94,7 @@
 
 <section id="gate" class="gate hidden">
   <h1>TV Dash Remote</h1>
-  <p class="muted">Enter the 4-digit PIN shown on your TV<br>(System row → Phone remote).</p>
+  <p class="muted">Enter the 4-digit PIN shown on your TV<br>(System row → Phone remote). You only do this once.</p>
   <input id="pinInput" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="••••">
   <button class="primary" id="pinGo">Connect</button>
   <p id="gateError" class="muted" style="color: var(--bad)"></p>
@@ -83,11 +106,52 @@
     <span id="conn" class="pill"><span class="dot"></span><span id="connText">Connecting…</span></span>
   </header>
 
+  <section data-panel="remote">
+    <div id="remoteNote" class="note">To control any app, turn on ADB debugging on the TV: Settings → My Fire TV → About, click the device name 7 times, then Developer options → ADB debugging. Tap Try connection. If the TV asks, tap Allow. The mic and power buttons are not available.</div>
+    <button id="tryAdb" class="ghost" style="width:100%; margin-top:8px">Try connection</button>
+    <div class="iconrow">
+      <button class="round" data-key="menu" aria-label="Menu">☰</button>
+      <button class="round" data-key="settings" aria-label="Settings">⚙</button>
+    </div>
+    <div class="iconrow">
+      <button class="round" id="keyBtn" aria-label="Keyboard">⌨</button>
+      <span class="round" style="visibility:hidden" aria-hidden="true"></span>
+    </div>
+    <div id="keyboard" class="sheet hidden">
+      <input id="typeText" placeholder="Text to send to the TV" autocomplete="off" enterkeyhint="send">
+      <div class="row" style="margin-top:10px">
+        <button id="typeDel" class="ghost">Delete</button>
+        <button id="typeSend" class="primary">Send</button>
+      </div>
+    </div>
+    <div class="pad-wrap">
+      <div class="pad">
+        <button class="n" data-key="up" data-hold="1" aria-label="Up">⌃</button>
+        <button class="e" data-key="right" data-hold="1" aria-label="Right">›</button>
+        <button class="s" data-key="down" data-hold="1" aria-label="Down">⌄</button>
+        <button class="w" data-key="left" data-hold="1" aria-label="Left">‹</button>
+        <button class="ok" data-key="select" aria-label="Select"></button>
+      </div>
+    </div>
+    <div class="iconrow">
+      <button class="round" data-key="back" aria-label="Back">↩</button>
+      <button class="round home" data-key="home" aria-label="Home">⌂</button>
+    </div>
+    <div class="transport">
+      <button class="round" data-key="rewind" aria-label="Rewind">⏪</button>
+      <button class="round" data-key="play" aria-label="Play or pause">⏯</button>
+      <button class="round" data-key="forward" aria-label="Fast forward">⏩</button>
+    </div>
+    <div id="shortcuts" class="shortcuts"></div>
+  </section>
+
+  <section data-panel="apps" class="hidden">
   <div class="now">
     <div class="time" id="tvTime">--:--</div>
     <div class="wx" id="tvWeather"></div>
   </div>
-  <div id="offScreen" class="note hidden">TV Dash isn't on the TV screen right now. Opening apps may not work until you press Home on the TV and open TV Dash.</div>
+  <div id="offScreen" class="note hidden">TV Dash isn't on the TV screen right now. Opening apps may not work until you open TV Dash on the TV.</div>
+  <p id="away" class="note hidden"></p>
 
   <div class="actions">
     <button data-act="home"><span>⌂</span>TV Dash</button>
@@ -103,6 +167,9 @@
   <input id="search" class="search" type="search" placeholder="Search apps">
   <div id="apps" class="grid"></div>
 
+  </section>
+
+  <section data-panel="more" class="hidden">
   <h2>Send photos to the TV</h2>
   <p class="muted">They show up on the TV right away and join the background slideshow. <span id="photoCount"></span></p>
   <div class="row">
@@ -140,9 +207,25 @@
     <div class="seg" data-setting="saverMinutes"><button data-v="0">Off</button><button data-v="2">2m</button><button data-v="5">5m</button><button data-v="10">10m</button><button data-v="30">30m</button></div></div>
   <div class="field"><label>"All apps" section on TV</label>
     <div class="seg" data-setting="showAllApps"><button data-v="true">Show</button><button data-v="false">Hide</button></div></div>
+  <div class="field">
+    <label for="stocks">Stocks and ETFs, separated by commas</label>
+    <div class="row"><input id="stocks" placeholder="SPY, QQQ" autocapitalize="characters" autocomplete="off" spellcheck="false"><button id="saveStocks" style="flex:0 0 auto">Save</button></div>
+  </div>
+  <div class="field">
+    <label for="crypto">Crypto, separated by commas</label>
+    <div class="row"><input id="crypto" placeholder="BTC, ETH" autocapitalize="characters" autocomplete="off" spellcheck="false"><button id="saveCrypto" style="flex:0 0 auto">Save</button></div>
+  </div>
+  <p class="muted">Symbols only, up to 16 of each. The TV shows the price and today's move. It never shows balances or how much anyone holds.</p>
 
-  <p class="muted" style="margin-top:28px">Tip: use <b>Share → Add to Home Screen</b> to keep this like an app. Your phone must be on the same Wi‑Fi as the TV.
-    <a href="#" id="forget" style="color: var(--muted)">Forget PIN</a></p>
+  <p class="muted" style="margin-top:28px">Tip: use <b>Share → Add to Home Screen</b> to keep this like an app. At home, use the TV's Wi‑Fi address. Away from home, use the Tailscale address.
+    <a href="#" id="forget" style="color: var(--muted)">Sign out this phone</a></p>
+  </section>
+
+  <nav class="tabs">
+    <button type="button" data-tab="remote" class="on">Remote</button>
+    <button type="button" data-tab="apps">Apps</button>
+    <button type="button" data-tab="more">More</button>
+  </nav>
 </main>
 
 <div id="toast" class="toast"></div>
@@ -151,18 +234,28 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   let pin = null;
+  let device = null;
   let state = null;
   let filter = '';
   let pollTimer = null;
   let lastAppsKey = '';
 
-  // PIN arrives in the QR link (#pin=1234) or is typed once, then remembered.
-  try { pin = localStorage.getItem('tvdash-pin'); } catch (e) {}
-  const m = location.hash.match(/pin=(\d{4})/);
-  if (m) {
-    pin = m[1];
-    try { localStorage.setItem('tvdash-pin', pin); } catch (e) {}
+  // A paired phone keeps a device token. The PIN is only used the first time, or from the QR link.
+  const devMatch = location.hash.match(/device=([0-9a-fA-F]{32})/);
+  const pinMatch = location.hash.match(/pin=(\d{4})/);
+  try { device = localStorage.getItem('tvdash-device'); } catch (e) {}
+  if (devMatch) {
+    device = devMatch[1].toLowerCase();
+    try { localStorage.setItem('tvdash-device', device); } catch (e) {}
+    try { localStorage.removeItem('tvdash-pin'); } catch (e) {}
+    pin = null;
     history.replaceState(null, '', location.pathname);
+  } else if (pinMatch) {
+    // Scanning the QR pairs this visit, even if an older token is still saved.
+    pin = pinMatch[1];
+    device = null;
+  } else if (!device) {
+    try { pin = localStorage.getItem('tvdash-pin'); } catch (e) {}
   }
 
   function toast(text) {
@@ -173,15 +266,40 @@
     toast.timer = setTimeout(() => t.classList.remove('show'), 2200);
   }
 
+  function saveDevice(value) {
+    device = value;
+    pin = null;
+    try { localStorage.setItem('tvdash-device', value); } catch (e) {}
+    try { localStorage.removeItem('tvdash-pin'); } catch (e) {}
+  }
+
+  function clearDevice() {
+    device = null;
+    pin = null;
+    try { localStorage.removeItem('tvdash-device'); } catch (e) {}
+    try { localStorage.removeItem('tvdash-pin'); } catch (e) {}
+  }
+
   async function api(path, body, raw) {
-    const opts = { method: body === undefined ? 'GET' : 'POST', headers: { 'X-Pin': pin || '' } };
+    const headers = {};
+    if (device) headers['X-Device'] = device;
+    else if (pin) headers['X-Pin'] = pin;
+    const opts = { method: body === undefined ? 'GET' : 'POST', headers };
     if (body !== undefined) {
       if (raw) { opts.body = body; opts.headers['Content-Type'] = 'image/jpeg'; }
       else { opts.body = JSON.stringify(body); opts.headers['Content-Type'] = 'application/json'; }
     }
     const res = await fetch(path, opts);
     const data = await res.json().catch(() => ({}));
-    if (res.status === 401) { showGate('That PIN didn\'t match. Check the TV.'); throw new Error('pin'); }
+    if (res.status === 401) {
+      const hadDevice = !!device;
+      pin = null;
+      try { localStorage.removeItem('tvdash-pin'); } catch (e) {}
+      if (hadDevice) clearDevice();
+      showGate(hadDevice ? (data.error || 'This phone was signed out. Enter the PIN from the TV.') : (data.error || 'That PIN didn\'t match. Check the TV.'));
+      throw new Error('pin');
+    }
+    if (res.status === 429) { showGate(data.error || 'Too many tries. Wait a few minutes.'); throw new Error('pin'); }
     if (!res.ok) throw new Error(data.error || ('Error ' + res.status));
     return data;
   }
@@ -199,16 +317,29 @@
     $('app').classList.remove('hidden');
   }
 
+  function startPoll() {
+    clearInterval(pollTimer);
+    pollTimer = setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 3000);
+  }
+
   async function connect(newPin) {
     if (newPin) pin = newPin;
     try {
-      await refresh();
-      try { localStorage.setItem('tvdash-pin', pin); } catch (e) {}
+      if (!device) {
+        if (!pin) { showGate(); return; }
+        const paired = await api('/api/pair', {});
+        if (!paired.device) throw new Error('The TV didn\'t finish signing in');
+        saveDevice(paired.device);
+        history.replaceState(null, '', location.pathname);
+      }
       showApp();
-      clearInterval(pollTimer);
-      pollTimer = setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 3000);
+      startPoll();
+      await refresh();
     } catch (e) {
-      if (e.message !== 'pin') showGate(e.message.includes('fetch') ? 'Can\'t reach the TV. Is your phone on the same Wi‑Fi?' : e.message);
+      if (e.message === 'pin') return;
+      // Already paired: stay on the remote and retry. Don't ask for the PIN again just because the TV is unreachable.
+      if (device) { showApp(); setConn(false); startPoll(); return; }
+      showGate(String(e.message || '').includes('fetch') ? 'Can\'t reach the TV. Same Wi‑Fi at home, or Tailscale if you\'re away.' : e.message);
     }
   }
 
@@ -225,10 +356,10 @@
 
   function setConn(ok) {
     $('conn').classList.toggle('on', ok);
-    $('connText').textContent = ok ? 'Connected' : 'Offline';
+    $('connText').textContent = ok ? 'Connected' : (device ? 'Can\'t reach TV' : 'Offline');
   }
 
-  const icon = (pkg) => '/api/icon?pin=' + encodeURIComponent(pin) + '&pkg=' + encodeURIComponent(pkg);
+  const icon = (pkg) => '/api/icon?device=' + encodeURIComponent(device || '') + '&pkg=' + encodeURIComponent(pkg);
   const labelOf = (pkg) => (state.apps.find(a => a.pkg === pkg) || { label: pkg }).label;
 
   function render() {
@@ -237,6 +368,9 @@
     $('offScreen').classList.toggle('hidden', state.onScreen);
     $('saverText').textContent = state.saverOn ? 'Wake TV Dash' : 'Screensaver';
     $('photoCount').textContent = state.photos ? state.photos + ' sent so far.' : '';
+    renderAway();
+    renderRemote();
+    renderShortcuts();
 
     // Favorites list with reorder buttons.
     const favs = state.favorites.filter(p => state.apps.some(a => a.pkg === p));
@@ -283,6 +417,9 @@
     // Settings controls reflect what the TV has.
     $('city').placeholder = 'e.g. Dallas';
     if (document.activeElement !== $('city')) $('city').value = state.settings.city;
+    const joinSyms = (v) => Array.isArray(v) ? v.join(', ') : '';
+    if (document.activeElement !== $('stocks')) $('stocks').value = joinSyms(state.settings.stocks);
+    if (document.activeElement !== $('crypto')) $('crypto').value = joinSyms(state.settings.crypto);
     document.querySelectorAll('.seg').forEach(seg => {
       const cur = String(state.settings[seg.dataset.setting]);
       seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === cur));
@@ -384,14 +521,148 @@
   }));
   $('saveCity').onclick = () => saveSetting('city', $('city').value.trim());
   $('city').onkeydown = (e) => { if (e.key === 'Enter') $('saveCity').click(); };
+  function parseSymbols(raw) {
+    const out = [];
+    String(raw || '').split(/[\s,;]+/).forEach(part => {
+      let s = part.trim().replace(/^\$/, '').toUpperCase();
+      if (s && out.indexOf(s) < 0 && out.length < 16) out.push(s);
+    });
+    return out;
+  }
+  async function saveSymbols(key, input) {
+    try {
+      await api('/api/settings', { [key]: parseSymbols(input.value) });
+      await refresh();
+      if (state && state.settings) input.value = (state.settings[key] || []).join(', ');
+      toast('Updated on the TV');
+    } catch (e) { if (e.message !== 'pin') toast(e.message); }
+  }
+  $('saveStocks').onclick = () => saveSymbols('stocks', $('stocks'));
+  $('saveCrypto').onclick = () => saveSymbols('crypto', $('crypto'));
+  $('stocks').onkeydown = (e) => { if (e.key === 'Enter') $('saveStocks').click(); };
+  $('crypto').onkeydown = (e) => { if (e.key === 'Enter') $('saveCrypto').click(); };
   $('search').oninput = (e) => { filter = e.target.value.trim().toLowerCase(); if (state) render(); };
   $('pinGo').onclick = () => connect($('pinInput').value.trim());
   $('pinInput').onkeydown = (e) => { if (e.key === 'Enter') $('pinGo').click(); };
   $('pinInput').oninput = (e) => { if (e.target.value.length === 4) $('pinGo').click(); };
-  $('forget').onclick = (e) => { e.preventDefault(); try { localStorage.removeItem('tvdash-pin'); } catch (x) {} pin = null; showGate(); };
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && pin) refresh().catch(() => {}); });
+  function renderAway() {
+    const box = $('away');
+    box.textContent = '';
+    if (!device || !state || !Array.isArray(state.addresses)) { box.classList.add('hidden'); return; }
+    const others = state.addresses.filter(u => { try { return new URL(u).host !== location.host; } catch (e) { return false; } });
+    if (!others.length) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    box.appendChild(document.createTextNode('Away from home, open this once and use Add to Home Screen. It stays signed in without the PIN: '));
+    others.forEach((u, i) => {
+      if (i) box.appendChild(document.createTextNode(' · '));
+      const a = document.createElement('a');
+      const url = new URL(u);
+      url.hash = 'device=' + device;
+      a.href = url.toString();
+      a.textContent = url.host;
+      a.style.color = 'var(--accent)';
+      box.appendChild(a);
+    });
+  }
 
-  if (pin) connect(); else showGate();
+  function showTab(name) {
+    document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== name));
+    document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  }
+  document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+  function renderRemote() {
+    const note = $('remoteNote');
+    const r = (state && state.remote) || {};
+    if (r.adb) {
+      note.classList.add('hidden');
+      $('tryAdb').classList.add('hidden');
+    } else {
+      note.classList.remove('hidden');
+      $('tryAdb').classList.remove('hidden');
+      note.textContent = r.accessibility
+        ? 'Limited remote is on. Back, Home, and play/pause work. The direction pad only works in some apps. For every app, turn on ADB debugging (Settings → My Fire TV → Developer options), then tap Try connection and Allow on the TV. Mic and power are not available.'
+        : 'To control any app: on the TV open Settings → My Fire TV → About and click the device name 7 times. Then Developer options → turn on ADB debugging. Tap Try connection. If the TV asks, tap Allow. Mic and power are not available.';
+    }
+  }
+
+  function renderShortcuts() {
+    const row = $('shortcuts');
+    if (!state) return;
+    const favs = (state.favorites || []).filter(p => state.apps.some(a => a.pkg === p));
+    const list = favs.length ? favs : state.apps.slice(0, 8).map(a => a.pkg);
+    const key = list.join('|');
+    if (row.dataset.key === key) return;
+    row.dataset.key = key;
+    row.innerHTML = '';
+    list.forEach(pkg => {
+      const b = document.createElement('button');
+      b.className = 'shortcut';
+      b.innerHTML = '<img alt=""><span></span>';
+      b.querySelector('img').src = icon(pkg);
+      b.querySelector('span').textContent = labelOf(pkg);
+      b.onclick = () => launch(pkg);
+      row.appendChild(b);
+    });
+  }
+
+  let lastKeyErr = 0;
+  async function sendKey(key) {
+    try { await api('/api/key', { key }); }
+    catch (e) {
+      if (e.message === 'pin') return;
+      const now = Date.now();
+      if (now - lastKeyErr < 2500) return;
+      lastKeyErr = now;
+      toast(e.message);
+    }
+  }
+
+  function bindHold(btn) {
+    let delay = null, repeater = null;
+    const stop = () => { clearTimeout(delay); clearInterval(repeater); delay = repeater = null; };
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+      sendKey(btn.dataset.key);
+      stop();
+      delay = setTimeout(() => { repeater = setInterval(() => sendKey(btn.dataset.key), 140); }, 320);
+    });
+    ['pointerup', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+  document.querySelectorAll('[data-key]').forEach(btn => {
+    if (btn.dataset.hold === '1') bindHold(btn);
+    else btn.addEventListener('click', () => sendKey(btn.dataset.key));
+  });
+  $('keyBtn').onclick = () => {
+    $('keyboard').classList.toggle('hidden');
+    if (!$('keyboard').classList.contains('hidden')) $('typeText').focus();
+  };
+  $('typeSend').onclick = async () => {
+    const text = $('typeText').value;
+    if (!text.trim()) { toast('Type something first'); return; }
+    try { await api('/api/type', { text }); $('typeText').value = ''; toast('Sent to the TV'); }
+    catch (e) { if (e.message !== 'pin') toast(e.message); }
+  };
+  $('typeText').onkeydown = (e) => { if (e.key === 'Enter') $('typeSend').click(); };
+  $('typeDel').onclick = () => sendKey('del');
+  $('tryAdb').onclick = async () => {
+    toast('If the TV asks, tap Allow');
+    try { await api('/api/remote/connect', {}); toast('The pad can control any app'); refresh(); }
+    catch (e) { if (e.message !== 'pin') toast(e.message); }
+  };
+
+  $('forget').onclick = async (e) => {
+    e.preventDefault();
+    try { await api('/api/signout', {}); }
+    catch (err) { if (err.message === 'pin') return; }
+    clearDevice();
+    showGate('Signed out on this phone.');
+  };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && device) refresh().catch(() => {}); });
+
+  if (device || pin) connect(); else showGate();
 })();
 </script>
 </body>

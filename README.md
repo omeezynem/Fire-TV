@@ -5,6 +5,7 @@ TV Dash is a custom dashboard app for Amazon Fire TV (and any Android TV). It ru
 ## What's on it
 - **Big clock and date** in 12- or 24-hour style.
 - **Weather**: current temperature, conditions, feels-like, humidity, wind, and a 3-day forecast from Open-Meteo, which is free. It finds your city from your internet connection, or you can set one.
+- **Market ticker**: a strip of stock, ETF, and crypto prices. Each symbol shows its name, the latest price, and a green ▲ or red ▼ with today's percent change. It does not show quantities, balances, or holdings. The list starts empty, so the strip stays hidden until you add symbols. The same prices show on the screensaver.
 - **Favorites row**: your streaming apps as large tiles using each app's own TV artwork. On first launch it pins whichever of Netflix, Prime Video, YouTube, Disney+, Hulu, Max, Peacock, Paramount+, Pluto, Plex and Spotify are installed.
 - **All apps** grid with every app on the TV, sorted A–Z. It updates on its own when you install or remove an app.
 - **System row**: one-click Fire TV Settings, Network, Manage apps, Dashboard settings, Screensaver, and New photo.
@@ -15,8 +16,8 @@ TV Dash is a custom dashboard app for Amazon Fire TV (and any Android TV). It ru
 ## Phone remote (works live with the TV)
 TV Dash includes a phone remote. Your phone opens it in the browser, so there's nothing to install from an app store.
 
-1. On the TV, go to the **System** row and choose **Phone remote**. Scan the QR code with your phone's camera. You can also type the address and 4-digit PIN it shows.
-2. On iPhone, tap **Share → Add to Home Screen**. On Android, use **⋮ → Add to Home screen**. It then opens like a normal app.
+1. On the TV, go to the **System** row and choose **Phone remote**. Scan the QR code with your phone's camera, or type the address and the 4-digit PIN. You only do this once.
+2. On iPhone, tap **Share → Add to Home Screen**. On Android, use **⋮ → Add to Home screen**. It then opens like a normal app, already signed in.
 
 From your phone you can:
 - Open any TV app. The app list and icons come straight from the TV.
@@ -25,12 +26,44 @@ From your phone you can:
 - Show a message on the TV screen ("Dinner's ready 🍕").
 - Turn the screensaver on or off and skip to the next photo.
 - Change the weather city, °F/°C, clock style, photo timing and screensaver timing. The TV updates instantly.
+- Set the stock, ETF, and crypto symbols for the market ticker.
 
-The phone must be on the same Wi‑Fi as the TV. Every request needs the PIN, and 5 wrong PINs lock the remote for 5 minutes. **New PIN** on the TV signs out every phone. The remote keeps running in the background and starts when the TV turns on.
+The first time, the phone trades that PIN for a saved sign-in. After that it does not ask again, even if you close the page or the TV is reached at a different address. At home, use the Wi‑Fi address. Away from home, use the Tailscale address shown on the TV (it looks like `100.x.x.x`). The remote page also offers that link once you're signed in; open it once and add that to your home screen. The TV listens on every network interface, so a VPN address works as well as the home network.
+
+Five wrong PINs still lock pairing for 5 minutes. **Sign out phones** on the TV makes a new PIN and signs every phone out. The remote keeps running in the background and starts when the TV turns on.
+
+## Phone buttons in any app
+
+The **Remote** tab on the phone is a direction pad: up, down, left, right, select in the middle, Back, Home, menu, settings, a keyboard, and play, rewind, and fast-forward. Your favorite apps sit in a strip under the pad. Photos, messages, and dashboard settings are on the **Apps** and **More** tabs.
+
+Android does not let a normal app press buttons inside Netflix or any other app. TV Dash uses the TV's own debugging service, which is the same path as a real remote (`input keyevent`). One-time setup, on the TV:
+
+1. **Settings → My Fire TV → About.**
+2. Click the device name **7 times**, until it says you are a developer.
+3. Go back, then open **Developer options**.
+4. Turn on **ADB debugging**.
+5. Open **Phone remote** and tap **Connect ADB** (or tap **Try connection** on the phone). If the TV asks to allow a connection, tap **Allow** and check **Always allow**.
+
+After that, every button on the phone pad works in any app, including typing. The microphone and the power button from Amazon's phone app are not included.
+
+If you skip debugging, you can turn on **Settings → Accessibility → TV Dash**. Back, Home, and play/pause work. The direction pad only works in apps that show which item is selected. Menu and typing into every app need the debugging step above.
 
 **Opening apps while you're watching something else:** Android 10+ (Fire OS 8) blocks background apps from switching screens. While TV Dash is on screen this always works. To make it work at any time, allow "display over other apps" once from a computer:
 `adb shell appops set com.tvdash.launcher SYSTEM_ALERT_WINDOW allow`
 Fire OS 7 and older don't need this.
+
+## Market ticker
+
+The ticker is off until you add symbols. Those symbols are saved on the TV only. They are not built into the app.
+
+On the TV, open **System → Dashboard settings → Markets**.
+
+- **Stocks and ETFs**: symbols separated by commas, for example `SPY, QQQ`. A class share can be written `BRK.B`.
+- **Crypto**: symbols separated by commas, for example `BTC, ETH, XRP, DOGE`.
+
+Up to 16 of each. From the phone remote, use the same two fields under **Dashboard settings**. The TV updates as soon as you save, then refreshes about every 90 seconds while TV Dash is on screen (including the screensaver).
+
+Stock and ETF prices come from Yahoo Finance. Crypto prices come from CoinGecko. Both are free and need no API key. Each symbol shows the price and whether it is up or down today. If the network fails, the last prices stay up. Clear both lists to hide the strip.
 
 ## Remote controls
 | Button | What it does |
@@ -68,11 +101,15 @@ adb connect <fire-tv-ip>:5555 && adb install -r app/build/outputs/apk/debug/app-
 ## Code map
 | File | What it does |
 |---|---|
-| `MainActivity.java` | The dashboard: layout, app rows, clock, status, weather display, screensaver, remote handling |
+| `MainActivity.java` | The dashboard: layout, app rows, clock, status, weather, market ticker, screensaver, remote handling |
 | `AppEntry.java` | Finds the TV's launchable apps and their banners |
 | `Weather.java` | Location lookup plus the Open-Meteo forecast |
+| `Markets.java` | Stock, ETF, and crypto prices for the ticker (Yahoo Finance and CoinGecko) |
 | `Slideshow.java` | Downloads, resizes and cross-fades the background photos |
-| `TvServer.java` | Small home-network web server and the PIN-protected API the phone uses |
+| `TvServer.java` | Small web server and the PIN-protected API the phone uses |
+| `AdbRemote.java` | Sends real remote keys through the TV's ADB debugging service |
+| `RemoteAccessibility.java` | Limited Back, Home, and focus control when debugging is off |
+| `RemoteControl.java` | Picks ADB or accessibility for each phone button |
 | `RemoteService.java`, `BootReceiver.java` | Keep the phone remote running, including after the TV restarts |
 | `Hub.java` | Passes phone commands to the dashboard while it's on screen |
 | `Photos.java` | Stores photos sent from the phone (up to 60) |
