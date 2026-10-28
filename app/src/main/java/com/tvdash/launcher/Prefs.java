@@ -84,6 +84,60 @@ final class Prefs {
     void setCryptoText(String raw) { setCrypto(parseSymbols(raw, true)); }
     String cryptoText() { return joinSymbols(crypto()); }
 
+    private static final int MAX_SHOWS = 20;
+
+    /** Shows added from the phone. Empty until the user adds one. No real watch history is stored here. */
+    List<Shows.Show> shows() {
+        List<Shows.Show> out = new ArrayList<>();
+        String raw = sp.getString("shows", "");
+        if (raw == null || raw.length() == 0) return out;
+        String[] lines = raw.split("\n");
+        for (int i = 0; i < lines.length && out.size() < MAX_SHOWS; i++) {
+            String[] parts = lines[i].split("\u001f", -1);
+            if (parts.length < 1) continue;
+            String name = parts[0].trim();
+            if (name.length() == 0) continue;
+            String poster = parts.length > 1 ? parts[1] : "";
+            String network = parts.length > 2 ? parts[2] : "";
+            out.add(new Shows.Show(name, poster, network, ""));
+        }
+        return out;
+    }
+
+    void addShow(String name, String poster, String network) {
+        if (name == null) return;
+        name = name.trim();
+        if (name.length() == 0 || name.length() > 80) return;
+        if (name.indexOf('\n') >= 0 || name.indexOf('\u001f') >= 0) return;
+        if (poster == null) poster = "";
+        if (network == null) network = "";
+        if (poster.length() > 300) poster = "";
+        if (network.length() > 40) network = network.substring(0, 40);
+        List<Shows.Show> all = shows();
+        for (int i = 0; i < all.size(); i++) {
+            if (all.get(i).name.equalsIgnoreCase(name)) return;
+        }
+        if (all.size() >= MAX_SHOWS) return;
+        String line = name + "\u001f" + poster.replace("\n", "").replace("\u001f", "")
+                + "\u001f" + network.replace("\n", "").replace("\u001f", "");
+        String raw = sp.getString("shows", "");
+        if (raw == null) raw = "";
+        sp.edit().putString("shows", raw.length() == 0 ? line : raw + "\n" + line).apply();
+    }
+
+    void removeShow(String name) {
+        if (name == null) return;
+        List<Shows.Show> all = shows();
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < all.size(); i++) {
+            Shows.Show s = all.get(i);
+            if (s.name.equalsIgnoreCase(name.trim())) continue;
+            if (b.length() > 0) b.append('\n');
+            b.append(s.name).append('\u001f').append(s.poster).append('\u001f').append(s.network);
+        }
+        sp.edit().putString("shows", b.toString()).apply();
+    }
+
     static String joinSymbols(List<String> symbols) {
         StringBuilder b = new StringBuilder();
         if (symbols != null) {

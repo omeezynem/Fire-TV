@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -16,16 +16,17 @@
     --text: #ededed; --muted: #a1a1aa; --accent: #00ff88; --warm: #00ff88; --bad: #ff4444; --good: #00ff88;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   html, body { margin: 0; color: var(--text);
     font: 15px/1.4 ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Roboto Mono", monospace;
     background-color: #000;
     background-image:
-      radial-gradient(ellipse at 18% 0%, rgba(0,255,136,.16), transparent 46%),
-      linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+      radial-gradient(ellipse at 50% 0%, rgba(0,255,136,.14), transparent 42%),
+      linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
     background-size: auto, 22px 22px, 22px 22px;
     -webkit-font-smoothing: antialiased; }
-  body { padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 84px); max-width: 640px; margin: 0 auto; }
+  body { padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 84px) max(16px, env(safe-area-inset-left)); max-width: 480px; margin: 0 auto; }
   header { display: flex; align-items: center; justify-content: space-between; padding: 22px 4px 6px; }
   h1 { font-size: 22px; font-weight: 500; margin: 0; letter-spacing: .08em; }
   h2 { font-size: 11px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 28px 2px 8px; }
@@ -36,15 +37,15 @@
   .now .time { font-size: 36px; font-weight: 500; letter-spacing: 0; white-space: nowrap; }
   .now .wx { text-align: right; color: var(--muted); font-size: 14px; }
   .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
-  button, .btn { appearance: none; border: 1px solid var(--line); border-radius: 2px; background: #000; color: var(--text); font: inherit; padding: 12px 10px; cursor: pointer; }
-  button:active { border-color: var(--accent); color: var(--accent); }
+  button, .btn { appearance: none; border: 1px solid var(--line); border-radius: 2px; background: #000; color: var(--text); font: inherit; padding: 12px 10px; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+  button:active { border-color: var(--accent); color: var(--accent); background: #052e1a; }
   button:disabled { opacity: .35; }
   button.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
   button.primary:active { color: #000; }
   button.ghost { background: transparent; border: 1px solid var(--line); }
   .actions button { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; }
   .actions button span { font-size: 22px; }
-  input, textarea, select { width: 100%; font: inherit; color: var(--text); background: #000; border: 1px solid var(--line); border-radius: 2px; padding: 12px 14px; }
+  input, textarea, select { width: 100%; font: inherit; font-size: 16px; color: var(--text); background: #000; border: 1px solid var(--line); border-radius: 2px; padding: 12px 14px; }
   textarea { resize: vertical; min-height: 70px; }
   .search { margin-bottom: 10px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
@@ -72,24 +73,56 @@
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; gap: 0; padding: 0 0 env(safe-area-inset-bottom); background: #000; border-top: 1px solid var(--line); }
   .tabs button { flex: 1; padding: 14px 6px; border: 0; border-radius: 0; background: transparent; color: var(--muted); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
   .tabs button.on { color: var(--accent); box-shadow: inset 0 1px 0 var(--accent); }
-  .iconrow { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px 0; }
-  .round { width: 52px; height: 52px; border-radius: 2px; background: #000; color: var(--text); border: 1px solid var(--line); font-size: 18px; padding: 0; display: flex; align-items: center; justify-content: center; box-shadow: none; }
-  .round.home { width: 64px; height: 64px; background: #000; color: var(--accent); border-color: var(--accent); font-size: 26px; box-shadow: 0 0 16px rgba(0,255,136,.28); }
-  .round.home:active { background: #052e1a; color: var(--accent); }
-  .pad-wrap { display: flex; justify-content: center; margin: 20px 0 10px; }
-  .pad { width: min(76vw, 280px); height: min(76vw, 280px); position: relative; }
-  .pad button { position: absolute; padding: 0; color: var(--text); background: #0a0a0a; border: 1px solid var(--line); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 400; touch-action: none; box-shadow: none; }
-  .pad .n { top: 0; left: 30%; width: 40%; height: 30%; }
-  .pad .s { bottom: 0; left: 30%; width: 40%; height: 30%; }
-  .pad .w { left: 0; top: 30%; width: 30%; height: 40%; }
-  .pad .e { right: 0; top: 30%; width: 30%; height: 40%; }
-  .pad .ok { width: 28%; height: 28%; left: 36%; top: 36%; background: #050805; border-color: var(--accent); box-shadow: 0 0 18px rgba(0,255,136,.35); font-size: 0; }
-  .pad button:active { border-color: var(--accent); box-shadow: 0 0 12px rgba(0,255,136,.35); }
-  .transport { display: flex; justify-content: center; gap: 22px; margin: 6px 0 12px; }
-  .shortcuts { display: flex; gap: 10px; overflow-x: auto; padding: 4px 0 8px; }
-  .shortcut { flex: 0 0 84px; background: #000; color: var(--text); border: 1px solid var(--line); border-radius: 2px; padding: 10px 6px 8px; font-size: 10px; font-weight: 500; letter-spacing: .04em; }
-  .shortcut img { width: 52px; height: 36px; object-fit: contain; display: block; margin: 0 auto 4px; border-radius: 2px; }
+  .util { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0 0; }
+  .util button, .cmd button {
+    min-height: 64px; padding: 8px 6px; background: #050505;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  }
+  .util button b, .cmd button b { font-size: 22px; font-weight: 500; letter-spacing: 0; color: var(--text); line-height: 1; }
+  .util button:active b, .cmd button:active b { color: var(--accent); }
+  .ring-wrap { display: flex; justify-content: center; margin: 12px 0 0; }
+  .ring {
+    width: min(76vw, 292px); aspect-ratio: 1; position: relative; border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, #000 0 26%, #121212 27.5% 48%, #080808 49% 100%);
+    border: 1px solid #2a2a2a;
+    box-shadow: 0 0 0 10px #000, 0 0 42px rgba(0,255,136,.14), inset 0 0 0 1px #1c1c1c;
+  }
+  .ring button {
+    position: absolute; border: 0; background: transparent; color: #ededed; padding: 0; min-height: 0;
+    border-radius: 0; touch-action: none; display: flex; align-items: center; justify-content: center;
+  }
+  .ring .dir { width: 36%; height: 34%; font-size: 30px; }
+  .ring .up { top: 0; left: 32%; }
+  .ring .down { bottom: 0; left: 32%; }
+  .ring .left { left: 0; top: 33%; }
+  .ring .right { right: 0; top: 33%; }
+  .ring .ok {
+    width: 38%; height: 38%; left: 31%; top: 31%; border-radius: 50%;
+    border: 2px solid var(--accent); background: #050805; color: var(--accent);
+    box-shadow: 0 0 28px rgba(0,255,136,.45);
+    font-size: 13px; letter-spacing: .18em; font-weight: 600;
+  }
+  .ring .dir:active { color: var(--accent); background: rgba(0,255,136,.14); }
+  .ring .ok:active { background: #052e1a; }
+  .cmd { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0 0; }
+  section[data-panel="remote"] h2 { margin-top: 14px; }
+  .cmd.pair { grid-template-columns: 1fr 1fr; max-width: 280px; margin-left: auto; margin-right: auto; }
+  .cmd .home { border-color: var(--accent); box-shadow: 0 0 16px rgba(0,255,136,.22); }
+  .cmd .home b { color: var(--accent); }
+  .shortcuts { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 10px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .shortcuts::-webkit-scrollbar { display: none; height: 0; }
+  .shortcut { flex: 0 0 96px; min-height: 88px; background: #050505; color: var(--text); border: 1px solid var(--line); border-radius: 2px; padding: 10px 6px 8px; font-size: 10px; letter-spacing: .04em; }
+  .shortcut:active { border-color: var(--accent); }
+  .shortcut img { width: 64px; height: 40px; object-fit: contain; display: block; margin: 0 auto 6px; border-radius: 2px; background: #000; }
   .shortcut span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .showhits { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .showhit { display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); background: #000; padding: 8px; }
+  .showhit img { width: 46px; height: 68px; object-fit: cover; background: #111; flex: 0 0 auto; }
+  .showhit .meta { flex: 1; min-width: 0; }
+  .showhit .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .showhit .net { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .showhit button { flex: 0 0 auto; min-height: 44px; }
   .sheet { background: #000; border: 1px solid var(--line); border-radius: 2px; padding: 12px; margin: 12px 0; }
   #remoteNote { margin-top: 4px; }
   .toast.show { opacity: 1; }
@@ -115,15 +148,11 @@
   </header>
 
   <section data-panel="remote">
-    <div id="remoteNote" class="note">To control any app, turn on ADB debugging on the TV: Settings → My Fire TV → About, click the device name 7 times, then Developer options → ADB debugging. Tap Try connection. If the TV asks, tap Allow. The mic and power buttons are not available.</div>
-    <button id="tryAdb" class="ghost" style="width:100%; margin-top:8px">Try connection</button>
-    <div class="iconrow">
-      <button class="round" data-key="menu" aria-label="Menu">☰</button>
-      <button class="round" data-key="settings" aria-label="Settings">⚙</button>
-    </div>
-    <div class="iconrow">
-      <button class="round" id="keyBtn" aria-label="Keyboard">⌨</button>
-      <span class="round" style="visibility:hidden" aria-hidden="true"></span>
+    <div id="remoteNote" class="note">Turn on ADB debugging (My Fire TV → Developer options), then tap Try connection and Allow. Mic and power aren't available.</div>
+    <button id="tryAdb" class="ghost" style="width:100%; margin-top:8px; min-height:48px">Try connection</button>
+    <div class="util">
+      <button type="button" id="keyBtn" aria-label="Keyboard"><b>⌨</b>Keyboard</button>
+      <button type="button" data-key="settings" aria-label="Settings"><b>⚙</b>Settings</button>
     </div>
     <div id="keyboard" class="sheet hidden">
       <input id="typeText" placeholder="Text to send to the TV" autocomplete="off" enterkeyhint="send">
@@ -132,24 +161,26 @@
         <button id="typeSend" class="primary">Send</button>
       </div>
     </div>
-    <div class="pad-wrap">
-      <div class="pad">
-        <button class="n" data-key="up" data-hold="1" aria-label="Up">⌃</button>
-        <button class="e" data-key="right" data-hold="1" aria-label="Right">›</button>
-        <button class="s" data-key="down" data-hold="1" aria-label="Down">⌄</button>
-        <button class="w" data-key="left" data-hold="1" aria-label="Left">‹</button>
-        <button class="ok" data-key="select" aria-label="Select"></button>
+    <div class="ring-wrap">
+      <div class="ring" aria-label="Direction pad">
+        <button type="button" class="dir up" data-key="up" data-hold="1" aria-label="Up">▲</button>
+        <button type="button" class="dir right" data-key="right" data-hold="1" aria-label="Right">▶</button>
+        <button type="button" class="dir down" data-key="down" data-hold="1" aria-label="Down">▼</button>
+        <button type="button" class="dir left" data-key="left" data-hold="1" aria-label="Left">◀</button>
+        <button type="button" class="ok" data-key="select" aria-label="Select">OK</button>
       </div>
     </div>
-    <div class="iconrow">
-      <button class="round" data-key="back" aria-label="Back">↩</button>
-      <button class="round home" data-key="home" aria-label="Home">⌂</button>
+    <div class="cmd">
+      <button type="button" data-key="back" aria-label="Back"><b>↩</b>Back</button>
+      <button type="button" class="home" data-key="home" aria-label="Home"><b>⌂</b>Home</button>
+      <button type="button" data-key="menu" aria-label="Menu"><b>☰</b>Menu</button>
+      <button type="button" data-key="play" aria-label="Play or pause"><b>⏯</b>Play</button>
     </div>
-    <div class="transport">
-      <button class="round" data-key="rewind" aria-label="Rewind">⏪</button>
-      <button class="round" data-key="play" aria-label="Play or pause">⏯</button>
-      <button class="round" data-key="forward" aria-label="Fast forward">⏩</button>
+    <div class="cmd pair">
+      <button type="button" data-key="rewind" aria-label="Rewind"><b>⏪</b>Rewind</button>
+      <button type="button" data-key="forward" aria-label="Fast forward"><b>⏩</b>Forward</button>
     </div>
+    <h2>Apps</h2>
     <div id="shortcuts" class="shortcuts"></div>
   </section>
 
@@ -199,6 +230,15 @@
     </select>
     <button class="primary" id="sendMsg">Send</button>
   </div>
+
+  <h2>My shows</h2>
+  <p class="muted">Search a show and add it to the TV. Selecting it opens that app's search. This is not the TV's real continue-watching list.</p>
+  <div class="row">
+    <input id="showQ" placeholder="Show name" autocomplete="off" enterkeyhint="search">
+    <button id="showSearch" style="flex:0 0 auto; min-height:48px">Search</button>
+  </div>
+  <div id="showHits" class="showhits"></div>
+  <div id="myShows" class="showhits"></div>
 
   <h2>Dashboard settings</h2>
   <div class="field">
@@ -428,6 +468,7 @@
     const joinSyms = (v) => Array.isArray(v) ? v.join(', ') : '';
     if (document.activeElement !== $('stocks')) $('stocks').value = joinSyms(state.settings.stocks);
     if (document.activeElement !== $('crypto')) $('crypto').value = joinSyms(state.settings.crypto);
+    renderMyShows();
     document.querySelectorAll('.seg').forEach(seg => {
       const cur = String(state.settings[seg.dataset.setting]);
       seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === cur));
@@ -589,8 +630,8 @@
       note.classList.remove('hidden');
       $('tryAdb').classList.remove('hidden');
       note.textContent = r.accessibility
-        ? 'Limited remote is on. Back, Home, and play/pause work. The direction pad only works in some apps. For every app, turn on ADB debugging (Settings → My Fire TV → Developer options), then tap Try connection and Allow on the TV. Mic and power are not available.'
-        : 'To control any app: on the TV open Settings → My Fire TV → About and click the device name 7 times. Then Developer options → turn on ADB debugging. Tap Try connection. If the TV asks, tap Allow. Mic and power are not available.';
+        ? 'Back, Home, and play work. For the direction pad in every app, turn on ADB debugging, then tap Try connection and Allow.'
+        : 'Turn on ADB debugging (My Fire TV → Developer options), then tap Try connection and Allow. Mic and power aren\'t available.';
     }
   }
 
@@ -614,6 +655,59 @@
     });
   }
 
+  function buzz() { try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {} }
+
+  function renderMyShows() {
+    const box = $('myShows');
+    const list = (state && state.shows) || [];
+    const key = list.map(s => s.name).join('|');
+    if (box.dataset.key === key) return;
+    box.dataset.key = key;
+    box.innerHTML = '';
+    list.forEach(s => {
+      const row = document.createElement('div');
+      row.className = 'showhit';
+      row.innerHTML = '<img alt=""><div class="meta"><div class="name"></div><div class="net"></div></div><button type="button">Remove</button>';
+      if (s.poster) row.querySelector('img').src = s.poster;
+      row.querySelector('.name').textContent = s.name;
+      row.querySelector('.net').textContent = s.network || '';
+      row.querySelector('button').onclick = async () => {
+        try { await api('/api/shows', { op: 'remove', name: s.name }); await refresh(); }
+        catch (e) { if (e.message !== 'pin') toast(e.message); }
+      };
+      box.appendChild(row);
+    });
+  }
+
+  $('showSearch').onclick = async () => {
+    const q = $('showQ').value.trim();
+    if (q.length < 2) { toast('Type a show name'); return; }
+    const hits = $('showHits');
+    hits.innerHTML = '';
+    try {
+      const data = await api('/api/tv?q=' + encodeURIComponent(q));
+      const results = data.results || [];
+      if (!results.length) { toast('No shows found'); return; }
+      results.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'showhit';
+        row.innerHTML = '<img alt=""><div class="meta"><div class="name"></div><div class="net"></div></div><button type="button">Add</button>';
+        if (s.poster) row.querySelector('img').src = s.poster;
+        row.querySelector('.name').textContent = s.name;
+        row.querySelector('.net').textContent = s.network || '';
+        row.querySelector('button').onclick = async () => {
+          try {
+            await api('/api/shows', { op: 'add', name: s.name, poster: s.poster || '', network: s.network || '' });
+            toast('Added on the TV');
+            await refresh();
+          } catch (e) { if (e.message !== 'pin') toast(e.message); }
+        };
+        hits.appendChild(row);
+      });
+    } catch (e) { if (e.message !== 'pin') toast(e.message); }
+  };
+  $('showQ').onkeydown = (e) => { if (e.key === 'Enter') $('showSearch').click(); };
+
   let lastKeyErr = 0;
   async function sendKey(key) {
     try { await api('/api/key', { key }); }
@@ -631,6 +725,7 @@
     const stop = () => { clearTimeout(delay); clearInterval(repeater); delay = repeater = null; };
     btn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      buzz();
       try { btn.setPointerCapture(e.pointerId); } catch (err) {}
       sendKey(btn.dataset.key);
       stop();
@@ -641,7 +736,7 @@
   }
   document.querySelectorAll('[data-key]').forEach(btn => {
     if (btn.dataset.hold === '1') bindHold(btn);
-    else btn.addEventListener('click', () => sendKey(btn.dataset.key));
+    else btn.addEventListener('click', () => { buzz(); sendKey(btn.dataset.key); });
   });
   $('keyBtn').onclick = () => {
     $('keyboard').classList.toggle('hidden');

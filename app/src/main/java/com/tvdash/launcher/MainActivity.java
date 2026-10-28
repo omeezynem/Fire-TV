@@ -9,8 +9,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.text.TextUtils;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -37,6 +39,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -46,12 +49,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * The home screen: clock, weather, market ticker, favorite apps, all apps, system shortcuts,
- * photo background and screensaver. Also takes live commands from the phone remote through {@link Hub}.
+ * The home screen: clock, weather, market ticker, headlines, shows, favorite apps, all apps,
+ * system shortcuts, photo background and screensaver. Also takes live commands from the phone remote through {@link Hub}.
  */
 public class MainActivity extends Activity implements Hub.Screen {
     private static final long WEATHER_REFRESH_MS = 20 * 60 * 1000;
     private static final long MARKET_REFRESH_MS = 90 * 1000;
+    private static final long NEWS_REFRESH_MS = 12 * 60 * 1000;
+    private static final long NEWS_ROTATE_MS = 8 * 1000;
     private static final int UP_COLOR = 0xFF00FF88;
     private static final int DOWN_COLOR = 0xFFFF4444;
     private static final int FLAT_COLOR = 0x73EBEBF5;
@@ -78,6 +83,11 @@ public class MainActivity extends Activity implements Hub.Screen {
     private HorizontalScrollView saverMarketsScroll;
     private LinearLayout marketsRow;
     private LinearLayout saverMarketsRow;
+    private View newsBar;
+    private TextView newsText;
+    private View showsSection;
+    private TextView showsHeading;
+    private LinearLayout showsRow;
     private LinearLayout saverClockBox;
     private TextView saverClock, saverWeather;
     private TextView messageBanner;
@@ -89,6 +99,10 @@ public class MainActivity extends Activity implements Hub.Screen {
     private String weatherKey = "";
     private String marketKey = "";
     private int marketGen;
+    private int newsGen;
+    private int showGen;
+    private int headlineIndex;
+    private List<Headlines.Item> headlines = new ArrayList<Headlines.Item>();
     private int sidePad, gap;
 
     private final Runnable clockTick = new Runnable() {
@@ -106,6 +120,19 @@ public class MainActivity extends Activity implements Hub.Screen {
     private final Runnable marketTick = new Runnable() {
         @Override public void run() {
             refreshMarkets();
+        }
+    };
+    private final Runnable newsTick = new Runnable() {
+        @Override public void run() {
+            refreshNews();
+        }
+    };
+    private final Runnable newsRotate = new Runnable() {
+        @Override public void run() {
+            if (headlines.size() < 2 || newsText == null) return;
+            headlineIndex = (headlineIndex + 1) % headlines.size();
+            paintHeadline();
+            ui.postDelayed(this, NEWS_ROTATE_MS);
         }
     };
     private final Runnable marketScrollTick = new Runnable() {
@@ -159,6 +186,8 @@ public class MainActivity extends Activity implements Hub.Screen {
         refreshWeather(false);
         exitScreensaver();
         refreshMarkets();
+        refreshNews();
+        refreshShows();
         ui.removeCallbacks(marketScrollTick);
         ui.post(marketScrollTick);
         Hub.screen = this;
@@ -172,6 +201,8 @@ public class MainActivity extends Activity implements Hub.Screen {
         ui.removeCallbacks(clockTick);
         ui.removeCallbacks(weatherTick);
         ui.removeCallbacks(marketTick);
+        ui.removeCallbacks(newsTick);
+        ui.removeCallbacks(newsRotate);
         ui.removeCallbacks(marketScrollTick);
         ui.removeCallbacks(idle);
         slideshow.stop();
@@ -259,6 +290,7 @@ public class MainActivity extends Activity implements Hub.Screen {
         dash.setOrientation(LinearLayout.VERTICAL);
         dash.addView(buildTopBar());
         dash.addView(buildMarketsBar());
+        dash.addView(buildNewsBar());
 
         scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -273,6 +305,17 @@ public class MainActivity extends Activity implements Hub.Screen {
         sections.addView(favHeading);
         favRow = row();
         sections.addView(scroller(favRow));
+
+        LinearLayout showsBox = new LinearLayout(this);
+        showsBox.setOrientation(LinearLayout.VERTICAL);
+        showsBox.setClipChildren(false);
+        showsBox.setVisibility(View.GONE);
+        showsHeading = heading("My shows");
+        showsBox.addView(showsHeading);
+        showsRow = row();
+        showsBox.addView(scroller(showsRow));
+        showsSection = showsBox;
+        sections.addView(showsBox);
 
         LinearLayout appsBox = new LinearLayout(this);
         appsBox.setOrientation(LinearLayout.VERTICAL);
@@ -415,6 +458,25 @@ public class MainActivity extends Activity implements Hub.Screen {
         marketsScroll.addView(marketsRow);
         bar.addView(marketsScroll, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         marketsBar = bar;
+        return bar;
+    }
+
+    /** One headline at a time, under the prices. Hidden when there are no symbols or no stories. */
+    private View buildNewsBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(sidePad, Ui.dp(this, 6), sidePad, Ui.dp(this, 2));
+        bar.setFocusable(false);
+        bar.setVisibility(View.GONE);
+        newsText = Ui.text(this, "", 15, Ui.TEXT, false);
+        newsText.setSingleLine(true);
+        newsText.setEllipsize(TextUtils.TruncateAt.END);
+        newsText.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 10));
+        newsText.setBackground(Ui.glass(this));
+        Ui.roundClip(newsText, Ui.corner(this));
+        bar.addView(newsText, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        newsBar = bar;
         return bar;
     }
 
@@ -811,6 +873,145 @@ public class MainActivity extends Activity implements Hub.Screen {
         ui.postDelayed(marketTick, MARKET_REFRESH_MS);
     }
 
+    private void refreshNews() {
+        ui.removeCallbacks(newsTick);
+        final List<String> stocks = prefs.stocks();
+        final List<String> crypto = prefs.crypto();
+        final int gen = ++newsGen;
+        if (stocks.isEmpty() && crypto.isEmpty()) {
+            showNews(new ArrayList<Headlines.Item>());
+            return;
+        }
+        io.execute(() -> {
+            final List<Headlines.Item> items = Headlines.fetch(stocks, crypto);
+            ui.post(() -> {
+                if (!resumed || gen != newsGen || isFinishing()) return;
+                showNews(items);
+            });
+        });
+        ui.postDelayed(newsTick, NEWS_REFRESH_MS);
+    }
+
+    private void showNews(List<Headlines.Item> items) {
+        headlines = items == null ? new ArrayList<Headlines.Item>() : items;
+        ui.removeCallbacks(newsRotate);
+        if (headlines.isEmpty()) {
+            newsBar.setVisibility(View.GONE);
+            return;
+        }
+        newsBar.setVisibility(View.VISIBLE);
+        if (headlineIndex >= headlines.size()) headlineIndex = 0;
+        paintHeadline();
+        if (headlines.size() > 1) ui.postDelayed(newsRotate, NEWS_ROTATE_MS);
+    }
+
+    private void paintHeadline() {
+        if (newsText == null || headlines.isEmpty()) return;
+        Headlines.Item item = headlines.get(headlineIndex % headlines.size());
+        SpannableStringBuilder b = new SpannableStringBuilder();
+        String tag = item.symbol == null ? "" : item.symbol;
+        b.append(tag);
+        if (tag.length() > 0) {
+            b.setSpan(new ForegroundColorSpan(UP_COLOR), 0, tag.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        b.append("   ").append(item.title == null ? "" : item.title);
+        if (item.source != null && item.source.length() > 0) b.append("   ·   ").append(item.source);
+        String age = Headlines.age(item.published);
+        if (age.length() > 0) b.append("   ·   ").append(age);
+        newsText.setText(b);
+    }
+
+    private void refreshShows() {
+        final int gen = ++showGen;
+        final List<Shows.Show> mine = prefs.shows();
+        io.execute(() -> {
+            final List<Shows.Show> cont = Shows.watchNext(MainActivity.this);
+            ui.post(() -> {
+                if (!resumed || gen != showGen || isFinishing()) return;
+                renderShows(cont, mine);
+            });
+        });
+    }
+
+    private void renderShows(List<Shows.Show> cont, List<Shows.Show> mine) {
+        List<Shows.Show> all = new ArrayList<Shows.Show>();
+        if (cont != null) all.addAll(cont);
+        if (mine != null) {
+            for (int i = 0; i < mine.size(); i++) {
+                Shows.Show s = mine.get(i);
+                boolean dup = false;
+                for (int j = 0; j < all.size(); j++) {
+                    if (all.get(j).name.equalsIgnoreCase(s.name)) dup = true;
+                }
+                if (!dup) all.add(s);
+            }
+        }
+        showsRow.removeAllViews();
+        if (all.isEmpty()) {
+            showsSection.setVisibility(View.GONE);
+            return;
+        }
+        showsSection.setVisibility(View.VISIBLE);
+        boolean anyContinue = cont != null && !cont.isEmpty();
+        showsHeading.setText((anyContinue ? "Continue watching" : "My shows").toUpperCase());
+        int width = screenWidth() - 2 * sidePad;
+        int favW = (width - (FAV_VISIBLE - 1) * gap) / FAV_VISIBLE;
+        int tileW = (int) (favW * 0.72f);
+        int tileH = tileW * 3 / 2;
+        int continueCount = cont == null ? 0 : cont.size();
+        for (int i = 0; i < all.size(); i++) {
+            boolean last = i == all.size() - 1;
+            showsRow.addView(showTile(all.get(i), tileW, tileH, last ? 0 : gap, anyContinue && i < continueCount));
+        }
+    }
+
+    private View showTile(final Shows.Show show, int w, int h, int margin, final boolean fromWatch) {
+        final FrameLayout tile = Ui.tile(this, w, h, margin, () -> {
+            if (showsHeading != null) {
+                showsHeading.setText(((fromWatch ? "Continue watching" : "My shows") + "  ·  " + show.name).toUpperCase());
+            }
+        });
+        TextView label = Ui.text(this, show.name, 13, Ui.TEXT, false);
+        label.setSingleLine(true);
+        label.setEllipsize(TextUtils.TruncateAt.END);
+        label.setPadding(Ui.dp(this, 8), Ui.dp(this, 22), Ui.dp(this, 8), Ui.dp(this, 8));
+        label.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
+                new int[]{0xF0000000, 0x00000000}));
+        Ui.fill(tile, label, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
+        if (show.poster != null && show.poster.length() > 0) loadPoster(tile, show.poster);
+        tile.setOnClickListener(v -> Shows.open(MainActivity.this, show));
+        return tile;
+    }
+
+    private void loadPoster(final FrameLayout tile, final String url) {
+        io.execute(() -> {
+            Bitmap bmp = null;
+            if (url.startsWith("content:")) {
+                InputStream in = null;
+                try {
+                    in = getContentResolver().openInputStream(Uri.parse(url));
+                    if (in != null) bmp = BitmapFactory.decodeStream(in);
+                } catch (Exception ignored) {
+                } finally {
+                    if (in != null) try { in.close(); } catch (Exception ignored) {}
+                }
+            } else {
+                bmp = Shows.poster(url);
+            }
+            final Bitmap ready = bmp;
+            if (ready == null) return;
+            ui.post(() -> {
+                if (tile.getParent() == null) return;
+                ImageView iv = new ImageView(MainActivity.this);
+                iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                iv.setImageBitmap(ready);
+                tile.addView(iv, 0, new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            });
+        });
+    }
+
     private void showMarkets(List<Markets.Quote> quotes) {
         if (quotes == null) quotes = new ArrayList<Markets.Quote>();
         String key = marketKey(quotes);
@@ -1109,6 +1310,8 @@ public class MainActivity extends Activity implements Hub.Screen {
         slideshow.start(Photos.slideshowSources(this, prefs), prefs.slideSeconds());
         refreshWeather(false);
         refreshMarkets();
+        refreshNews();
+        refreshShows();
         resetIdle();
     }
 

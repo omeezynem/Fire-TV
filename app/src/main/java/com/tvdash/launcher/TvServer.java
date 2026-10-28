@@ -319,6 +319,7 @@ final class TvServer {
         switch (p) {
             case "/api/state": return state();
             case "/api/icon": return icon(r.query.get("pkg"));
+            case "/api/tv": return tvSearch(r.query.get("q"));
         }
         if (!post) return Response.error(404, "Not found");
         switch (p) {
@@ -336,6 +337,7 @@ final class TvServer {
             case "/api/message": return message(r.json());
             case "/api/settings": return settings(r.json());
             case "/api/favorites": return favorites(r.json());
+            case "/api/shows": return shows(r.json());
             default: return Response.error(404, "Not found");
         }
     }
@@ -465,7 +467,35 @@ final class TvServer {
             apps.put(new JSONObject().put("pkg", e.pkg).put("label", e.label));
         }
         s.put("apps", apps);
+        JSONArray shows = new JSONArray();
+        for (Shows.Show show : prefs.shows()) {
+            shows.put(new JSONObject()
+                    .put("name", show.name)
+                    .put("poster", show.poster)
+                    .put("network", show.network));
+        }
+        s.put("shows", shows);
         return Response.json(200, s);
+    }
+
+    private Response tvSearch(String q) throws Exception {
+        JSONArray arr = new JSONArray();
+        for (Shows.Show show : Shows.search(q)) {
+            arr.put(new JSONObject()
+                    .put("name", show.name)
+                    .put("poster", show.poster)
+                    .put("network", show.network));
+        }
+        return Response.json(200, new JSONObject().put("results", arr));
+    }
+
+    private Response shows(JSONObject body) throws Exception {
+        String op = body.optString("op", "add");
+        String name = body.optString("name", "");
+        if ("remove".equals(op)) prefs.removeShow(name);
+        else prefs.addShow(name, body.optString("poster", ""), body.optString("network", ""));
+        if (Hub.screen != null) Hub.screen.remoteSettingsChanged();
+        return Response.json(200, new JSONObject().put("ok", true));
     }
 
     private Response icon(String pkg) {

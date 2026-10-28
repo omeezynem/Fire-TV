@@ -66,6 +66,14 @@ Up to 16 of each. From the phone remote, use the same two fields under **Dashboa
 
 Stock and ETF prices come from Yahoo Finance. Crypto prices come from CoinGecko. Both are free and need no API key. Each symbol shows the price and whether it is up or down today. If the network fails, the last prices stay up. Clear both lists to hide the strip.
 
+Under the prices, TV Dash rotates recent headlines for those same symbols. Stocks use the symbol you typed. Crypto uses the Yahoo pair, such as `BTC-USD`. Headlines come from Yahoo's public RSS feed (no API key). Each line shows the symbol, the headline, Yahoo, and how old it is. The list refreshes about every 12 minutes, newest first, and duplicates are dropped. If the feed fails, the last headlines stay. With no symbols, the line is hidden.
+
+## My shows
+
+Fire TV apps such as Netflix and Prime do not share a reliable "continue watching" list with other apps. TV Dash checks Android TV's Watch Next list when the device offers it, and shows those titles first when any exist. On a typical Fire TV that list is empty.
+
+The row you can count on is **My shows**, which starts empty. On the phone, open the remote's **More** tab, search a title, and add it. Search uses TVmaze (free, no key) for the name, poster, and network. On the TV, select the tile. TV Dash opens a search for that title inside Netflix, Prime Video, Hulu, Disney+, Max, YouTube, or the other matching app when it is installed. If that app won't take the search link, TV Dash opens the app and tells you to search for the name. Nothing here reads your streaming accounts.
+
 ## Remote controls
 | Button | What it does |
 |---|---|
@@ -106,6 +114,8 @@ adb connect <fire-tv-ip>:5555 && adb install -r app/build/outputs/apk/debug/app-
 | `AppEntry.java` | Finds the TV's launchable apps and their banners |
 | `Weather.java` | Location lookup plus the Open-Meteo forecast |
 | `Markets.java` | Stock, ETF, and crypto prices for the ticker (Yahoo Finance and CoinGecko) |
+| `Headlines.java` | Recent headlines for the saved symbols (Yahoo Finance RSS) |
+| `Shows.java` | Saved shows, Watch Next when the TV exposes it, and app search links |
 | `Slideshow.java` | Downloads, resizes and cross-fades the background photos |
 | `TvServer.java` | Small web server and the PIN-protected API the phone uses |
 | `AdbRemote.java` | Sends real remote keys through the TV's ADB debugging service |
